@@ -4,7 +4,11 @@ Class {
 	#instVars : [
 		'stmt',
 		'columnCount',
-		'descs'
+		'descs',
+		'errorBlock',
+		'rowBlock',
+		'sql',
+		'doneBlock'
 	],
 	#pools : [
 		'OdbcConstants'
@@ -55,6 +59,20 @@ OdbcStmt >> execDirect: sql [
 	tmp at: len + 1 put: 0."
 	rc:=  self uFFIexecDirect: sql.rc = SQL_SUCCESS ifFalse: [ self halt ].
 	descs := self getDescriptions.^rc
+]
+
+{ #category : #execution }
+OdbcStmt >> execute [
+	| tabs rc  |
+	[ 
+	rc := self execDirect: sql.
+	tabs := OrderedCollection new.
+	[ 
+	rc := self fetch.
+	rc = SQL_SUCCESS ] whileTrue: [ |rec|
+		rec := self getData.
+		rowBlock ifNotNil: [ rowBlock value: rec ].
+		doneBlock ifNotNil: [ tabs add: rec ] ]. doneBlock ifNotNil: [ doneBlock value:tabs  ]] ensure: [ self freeHandle ]
 ]
 
 { #category : #accessing }
@@ -223,6 +241,26 @@ OdbcStmt >> initialize [
 OdbcStmt >> numResultColumns [
 	self uFFInumResultColumns:stmt.
 	^ columnCount shortAt: 1 bigEndian: false
+]
+
+{ #category : #'as yet unclassified' }
+OdbcStmt >> onDone: aBlock [
+	doneBlock := aBlock
+]
+
+{ #category : #'as yet unclassified' }
+OdbcStmt >> onError: aBlock [ 
+errorBlock:=aBlock
+]
+
+{ #category : #'as yet unclassified' }
+OdbcStmt >> onRow: aBlock [
+	rowBlock := aBlock
+]
+
+{ #category : #accessing }
+OdbcStmt >> sql:aSqlString [
+sql:=aSqlString 
 ]
 
 { #category : #accessing }
