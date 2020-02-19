@@ -48,8 +48,7 @@ OdbcStmt >> execDirect: sql [
 	| len tmp rc |
 	"len := sql size.
 	tmp := ByteArray new: len + 1.
-	tmp
-		replaceFrom: 1
+	tmp	replaceFrom: 1
 		to: len
 		with: sql
 		startingAt: 1.
