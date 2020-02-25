@@ -2,7 +2,8 @@ Class {
 	#name : #OdbcEnv,
 	#superclass : #Object,
 	#instVars : [
-		'henv'
+		'henv',
+		'connections'
 	],
 	#classVars : [
 		'Default'
@@ -10,21 +11,22 @@ Class {
 	#pools : [
 		'OdbcConstants'
 	],
+	#classInstVars : [
+		'connections'
+	],
 	#category : #'CAs-ODBC'
 }
 
 { #category : #accessing }
 OdbcEnv class >> default [
-	^ Default ifNil:[Default:= self new].
+	^ Default ifNil: [ Default := self new ] 
 ]
 
 { #category : #'class initialization' }
 OdbcEnv class >> initialize [
-	"Required to reset the Initialized flag on image startup.
-	Force libgit initialization since we just installed libgit.
-	Otherwise this would cause a libgit crash"
-	
-	Smalltalk addToStartUpList: self.
+
+
+	Smalltalk addToStartUpList: self
 ]
 
 { #category : #accessing }
@@ -49,11 +51,12 @@ OdbcEnv class >> startUp: isImageStarting [
 OdbcEnv >> allocConnection [
 	| hdbc |
 	hdbc := ExternalAddress new.
-	self
+	self 
 		uFFIallocHandle: hdbc
 		handleType: SQL_HANDLE_DBC
 		inputHandle: henv.
 	"self uFFIallocConnection: hdbc."
+	connections add: hdbc.
 	^ OdbcConn new hdbc: hdbc
 ]
 
@@ -63,19 +66,25 @@ OdbcEnv >> allocEnvironment [
 
 	henv ifNotNil: [ self deallocEnvironment ].
 	henv := ExternalAddress new.
-	^ self 
+	(self
 		uFFIallocHandle: henv
 		handleType: SQL_HANDLE_ENV
-		inputHandle: ExternalAddress null
+		inputHandle: ExternalAddress null) = SQL_SUCCESS
+		ifFalse: [ Error signal ].	connections := OrderedCollection new
 ]
 
 { #category : #'class initialization' }
 OdbcEnv >> deallocEnvironment [
 	"SQLRETURN  SQL_API SQLFreeHandle(SQLSMALLINT HandleType, SQLHANDLE Handle);"
 
-| ret |
-ret:= self uFFIfreeHandle: henv handleType: SQL_HANDLE_ENV.
-henv:=nil.^ret
+	| ret | 
+	connections
+		do: [ :c | 
+			c close.
+			c freeHandle ].
+	ret := self uFFIfreeHandle: henv handleType: SQL_HANDLE_ENV.
+	henv := nil.
+	^ ret
 ]
 
 { #category : #'library path' }
@@ -131,6 +140,11 @@ OdbcEnv >> getEnvAttr [
 		bufferLength: bufferLength
 		stringLengthPtr: stringLengthPointer.
 	^ tmp
+]
+
+{ #category : #'class initialization' }
+OdbcEnv >> initialize [
+super initialize.
 ]
 
 { #category : #'class initialization' }
