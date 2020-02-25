@@ -61,11 +61,12 @@ OdbcEnv >> allocConnection [
 OdbcEnv >> allocEnvironment [
 	"SQLRETURN SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);"
 
+	henv ifNotNil: [ self deallocEnvironment ].
 	henv := ExternalAddress new.
-	^ self
-		  uFFIallocHandle: henv
-		  handleType: SQL_HANDLE_ENV
-		  inputHandle: ExternalAddress null.
+	^ self 
+		uFFIallocHandle: henv
+		handleType: SQL_HANDLE_ENV
+		inputHandle: ExternalAddress null
 ]
 
 { #category : #'class initialization' }

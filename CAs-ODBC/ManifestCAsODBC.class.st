@@ -1,11 +1,13 @@
-"
-I store metadata for this package. These meta data are used by other tools such as the SmalllintManifestChecker and the critics Browser
-"
 Class {
 	#name : #ManifestCAsODBC,
 	#superclass : #PackageManifest,
-	#category : #'CAs-ODBC-Manifest'
+	#category : #'CAs-ODBC'
 }
+
+{ #category : #'code-critics' }
+ManifestCAsODBC class >> ruleGRAnsiConditionalsRuleV1FalsePositive [
+	^ #(#(#(#RGClassDefinition #(#OdbcEnv)) #'2020-02-25T11:10:29.359896+01:00') )
+]
 
 { #category : #'code-critics' }
 ManifestCAsODBC class >> ruleRBExcessiveArgumentsRuleV1FalsePositive [
