@@ -47,41 +47,45 @@ OdbcEnv class >> startUp: isImageStarting [
 	self default allocEnvironment 
 ]
 
-{ #category : #'class initialization' }
+{ #category : #api }
 OdbcEnv >> allocConnection [
-	| hdbc |
+	| hdbc con |
 	hdbc := ExternalAddress new.
-	self 
+	((self
 		uFFIallocHandle: hdbc
 		handleType: SQL_HANDLE_DBC
-		inputHandle: henv.
-	"self uFFIallocConnection: hdbc."
-	connections add: hdbc.
-	^ OdbcConn new hdbc: hdbc
+		inputHandle: henv) = SQL_SUCCESS)
+		ifFalse: [ Error signal ].
+	con := OdbcConn new hdbc: hdbc.
+	connections add: con.
+	^ con
 ]
 
-{ #category : #'class initialization' }
+{ #category : #'initialize - release' }
 OdbcEnv >> allocEnvironment [
 	"SQLRETURN SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);"
 
 	henv ifNotNil: [ self deallocEnvironment ].
 	henv := ExternalAddress new.
 	(self
-		uFFIallocHandle: henv
+		uFFIallocHandle: henv 
 		handleType: SQL_HANDLE_ENV
 		inputHandle: ExternalAddress null) = SQL_SUCCESS
-		ifFalse: [ Error signal ].	connections := OrderedCollection new
+		ifFalse: [ Error signal ].
+	self setEnvAttr.
+	connections := OrderedCollection new
 ]
 
-{ #category : #'class initialization' }
+{ #category : #'initialize - release' }
 OdbcEnv >> deallocEnvironment [
 	"SQLRETURN  SQL_API SQLFreeHandle(SQLSMALLINT HandleType, SQLHANDLE Handle);"
 
-	| ret | 
+	| ret |
 	connections
 		do: [ :c | 
-			c close.
-			c freeHandle ].
+			c
+				disconnect;
+				freeHandle ].connections:=nil.
 	ret := self uFFIfreeHandle: henv handleType: SQL_HANDLE_ENV.
 	henv := nil.
 	^ ret
@@ -92,7 +96,7 @@ OdbcEnv >> ffiLibrary [
 ^OdbcLibrary 
 ]
 
-{ #category : #'class initialization' }
+{ #category : #api }
 OdbcEnv >> getDiagRec [
 	"SQLRETURN SQLGetDiagRec(  
      SQLSMALLINT     HandleType,       SQLHANDLE       Handle,  
@@ -122,7 +126,7 @@ OdbcEnv >> getDiagRec [
 		  (messageText first: (textLengthPtr signedShortAt: 1)) asString }
 ]
 
-{ #category : #'class initialization' }
+{ #category : #api }
 OdbcEnv >> getEnvAttr [
 	"SQLRETURN SQLGetEnvAttr(  
      SQLHENV        EnvironmentHandle,       SQLINTEGER     Attribute,  
@@ -142,12 +146,12 @@ OdbcEnv >> getEnvAttr [
 	^ tmp
 ]
 
-{ #category : #'class initialization' }
+{ #category : #'initialize - release' }
 OdbcEnv >> initialize [
 super initialize.
 ]
 
-{ #category : #'class initialization' }
+{ #category : #api }
 OdbcEnv >> listDrivers [
 	"SQLRETURN SQLDrivers(  
      SQLHENV         EnvironmentHandle,       SQLUSMALLINT    Direction,  
@@ -179,52 +183,26 @@ OdbcEnv >> listDrivers [
 	^ driverList
 ]
 
-{ #category : #'class initialization' }
+{ #category : #api }
 OdbcEnv >> setEnvAttr [
 	"SQLRETURN SQLSetEnvAttr(       SQLHENV      EnvironmentHandle,  
      SQLINTEGER   Attribute,       SQLPOINTER   ValuePtr,  
      SQLINTEGER   StringLength); "
-
-	| tmp attribute valuePtr stringLength holder intBuffer |
+ 
+	| attribute valuePtr stringLength |
 	attribute := SQL_ATTR_ODBC_VERSION.
 	valuePtr := ExternalAddress new.
 	valuePtr fromInteger: SQL_OV_ODBC3.
-	
-	"valuePtr := ByteArray new: FFIInt32 externalTypeSize.
-	valuePtr unsignedLongAt: 1 put: SQL_OV_ODBC3.
-	holder := (FFIExternalValueHolder ofType: 'int') new.
-	holder value: SQL_OV_ODBC3.
-	intBuffer := FFIInt32 newBuffer.
-	intBuffer unsignedLongAt: 1 put: SQL_OV_ODBC3."
 	stringLength := -1.
-	"valuePtr := 'asdfasdf'."
-	"stringLength := valuePtr size."
-	tmp := self
-		       uFFIsetEnv: henv
-		       attr: attribute
-		       valuePtr: valuePtr
-		       stringLength: stringLength.
-	^ tmp
+	(self
+		uFFIsetEnv: henv
+		attr: attribute
+		valuePtr: valuePtr
+		stringLength: stringLength) = SQL_SUCCESS
+		ifFalse: [ Error signal ]
 ]
 
-{ #category : #'class initialization' }
-OdbcEnv >> uFFIallocConnection: hdbc [
-	^ self ffiCall:
-		  #( short SQLAllocHandle #( SQL_HANDLE_DBC , SQLHENV henv , SQLHANDLE 
-		        * hdbc ) )
-]
-
-{ #category : #'class initialization' }
-OdbcEnv >> uFFIallocEnvironment: aHenv [
-	"SQLRETURN SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);"
-
-	^ self ffiCall: 
-		  #( short SQLAllocHandle #(  1 ,  0 , SQLHANDLE * aHenv ) )
-	" #( short SQLAllocHandle #( SQL_HANDLE_ENV , SQL_NULL_HANDLE 
-		        , SQLHANDLE * aHenv ) )"
-]
-
-{ #category : #'class initialization' }
+{ #category : #'ffi calls' }
 OdbcEnv >> uFFIallocHandle: handle handleType: handleType inputHandle: inputHandle [
 	"SQLRETURN SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);"
 
@@ -233,7 +211,7 @@ OdbcEnv >> uFFIallocHandle: handle handleType: handleType inputHandle: inputHand
 		        inputHandle , SQLHANDLE * handle ) )
 ]
 
-{ #category : #'class initialization' }
+{ #category : #'ffi calls' }
 OdbcEnv >> uFFIfreeHandle: handle handleType: aHandleType [
 	"SQLRETURN  SQL_API SQLFreeHandle(SQLSMALLINT HandleType, SQLHANDLE Handle);"
 
@@ -241,7 +219,7 @@ OdbcEnv >> uFFIfreeHandle: handle handleType: aHandleType [
 		  #( SQLRETURN SQLFreeHandle #( SQLSMALLINT aHandleType , SQLHANDLE handle ) )
 ]
 
-{ #category : #'class initialization' }
+{ #category : #'ffi calls' }
 OdbcEnv >> uFFIgetEnvAttr: attribute valuePtr: valuePtr bufferLength: bufferLength stringLengthPtr: stringLengthPtr [
 	"SQLRETURN SQLGetEnvAttr(  
      SQLHENV        EnvironmentHandle,       SQLINTEGER     Attribute,  
@@ -253,7 +231,7 @@ OdbcEnv >> uFFIgetEnvAttr: attribute valuePtr: valuePtr bufferLength: bufferLeng
 			#(SQLRETURN SQLGetEnvAttr #(SQLHENV henv , SQLINTEGER attribute , SQLPOINTER valuePtr , SQLINTEGER bufferLength , SQLINTEGER * stringLengthPtr))
 ]
 
-{ #category : #'class initialization' }
+{ #category : #'ffi calls' }
 OdbcEnv >> uFFIlistDriversHenv: hEnv driver: driver direction: dir driver_size: driver_size driver_ret: driver_ret attr: attr attr_size: attr_size attr_ret: attr_ret [
 	"SQLRETURN SQLDrivers(  
      SQLHENV         EnvironmentHandle,       SQLUSMALLINT    Direction,  
@@ -268,7 +246,7 @@ OdbcEnv >> uFFIlistDriversHenv: hEnv driver: driver direction: dir driver_size: 
 		        * attr_ret ) )
 ]
 
-{ #category : #'class initialization' }
+{ #category : #'ffi calls' }
 OdbcEnv >> uFFIsetEnv: hEnv attr: attribute valuePtr: valuePtr stringLength: stringLength [
 	"SQLRETURN SQLSetEnvAttr(       SQLHENV      EnvironmentHandle,  
      SQLINTEGER   Attribute,       SQLPOINTER   ValuePtr,  

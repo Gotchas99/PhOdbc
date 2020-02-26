@@ -224,11 +224,13 @@ OdbcStmt >> getString: i [
 	buf := ByteArray new: 512.
 	strLen_or_IndPtr := FFIInt16 newBuffer.
 	rc := self
-		      uFFIgetDataNr: i
-		      type: SQL_C_CHAR
-		      buf: buf
-		      bufLen: buf size
-		      strLen_or_IndPtr: strLen_or_IndPtr.rc = 0 ifFalse: [ self halt ].
+		uFFIgetDataNr: i
+		type: SQL_C_CHAR
+		buf: buf
+		bufLen: buf size 
+		strLen_or_IndPtr: strLen_or_IndPtr.
+	rc = 0
+		ifFalse: [ self halt ].
 	^ buf asNullTerminatedString
 ]
 

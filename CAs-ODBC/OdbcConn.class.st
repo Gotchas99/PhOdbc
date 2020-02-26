@@ -2,7 +2,8 @@ Class {
 	#name : #OdbcConn,
 	#superclass : #Object,
 	#instVars : [
-		'hdbc'
+		'hdbc',
+		'statements'
 	],
 	#pools : [
 		'OdbcConstants'
@@ -12,26 +13,30 @@ Class {
 
 { #category : #accessing }
 OdbcConn >> allocStatement [
-	| stmt ret |
+	| stmt ret tmp |
 	stmt := ExternalAddress new.
-	(ret:= self uFFIallocstmt: stmt hdbc: hdbc) = SQL_SUCCESS ifTrue:[
-	^ OdbcStmt new stmt: stmt]ifFalse:[^ ret]
+	(ret := self uFFIallocstmt: stmt hdbc: hdbc) = SQL_SUCCESS
+		ifTrue: [ tmp := OdbcStmt new stmt: stmt.statements add:tmp.
+			^ tmp ]
+		ifFalse: [ ^ ret ]
 ]
 
 { #category : #accessing }
 OdbcConn >> disconnect [
-
-	^ self uFFIsqlDisconnect: hdbc
+	statements do: [ :s | s freeHandle ].
+	statements := nil.
+	^ self uFFIsqlDisconnect: hdbc 
 ]
 
 { #category : #accessing }
 OdbcConn >> driverConnect: connString [
-	^self uFFIdriverConnect: connString hdbc: hdbc
+statements:=OrderedCollection new.
+	^ self uFFIdriverConnect: connString hdbc: hdbc
 ]
 
-{ #category : #accessing }
+{ #category : #sample }
 OdbcConn >> driverConnectScott [
-	^self driverConnect: 'DSN=mysql-test'
+	^ self driverConnect: 'DSN=mysql-test' 
 ]
 
 { #category : #accessing }
@@ -45,7 +50,7 @@ OdbcConn >> freeHandle [
 	^ self uFFIfreeHandle: hdbc 
 ]
 
-{ #category : #'class initialization' }
+{ #category : #accessing }
 OdbcConn >> getDiagRec [
 	"SQLRETURN SQLGetDiagRec(  
      SQLSMALLINT     HandleType,       SQLHANDLE       Handle,  
@@ -80,7 +85,7 @@ OdbcConn >> hdbc:aHdbc [
 hdbc:= aHdbc
 ]
 
-{ #category : #accessing }
+{ #category : #'ffi calls' }
 OdbcConn >> uFFIallocstmt: stmt hdbc: handle [
 	"Statement SQL_HANDLE_STMT = 3"
 
@@ -92,7 +97,7 @@ OdbcConn >> uFFIallocstmt: stmt hdbc: handle [
 		        * stmt ) )
 ]
 
-{ #category : #accessing }
+{ #category : #'ffi calls' }
 OdbcConn >> uFFIdriverConnect: connString hdbc: handle [
 	"SQLRETURN SQLDriverConnect(  SQLHDBC ConnectionHandle,
   SQLHWND WindowHandle,  SQLCHAR *InConnectionString,
@@ -106,7 +111,7 @@ OdbcConn >> uFFIdriverConnect: connString hdbc: handle [
 	"SQL_NTS = -3, SQL_DRIVER_NOPROMPT=0"
 ]
 
-{ #category : #accessing }
+{ #category : #'ffi calls' }
 OdbcConn >> uFFIfreeHandle: handle [
 	"SQLRETURN  SQL_API SQLFreeHandle(SQLSMALLINT HandleType, SQLHANDLE Handle);"
 "SQL_HANDLE_DBC = 2"
@@ -114,7 +119,7 @@ OdbcConn >> uFFIfreeHandle: handle [
 		  #( SQLRETURN SQLFreeHandle #(  2 , SQLHANDLE handle ) )
 ]
 
-{ #category : #accessing }
+{ #category : #'ffi calls' }
 OdbcConn >> uFFIsqlDisconnect: handle [
 	"SQLRETURN  SQL_API SQLDisconnect(SQLHDBC ConnectionHandle);"
 
