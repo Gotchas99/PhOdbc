@@ -6,7 +6,17 @@ Class {
 
 { #category : #'code-critics' }
 ManifestCAsODBC class >> ruleGRAnsiConditionalsRuleV1FalsePositive [
-	^ #(#(#(#RGClassDefinition #(#OdbcEnv)) #'2020-02-25T11:10:29.359896+01:00') )
+	^ #(#(#(#RGClassDefinition #(#OdbcEnv)) #'2020-02-25T11:10:29.359896+01:00') #(#(#RGPackageDefinition #(#'CAs-ODBC')) #'2020-02-26T10:28:24.798896+01:00') )
+]
+
+{ #category : #'code-critics' }
+ManifestCAsODBC class >> ruleGRAnsiConvertorRuleV1FalsePositive [
+	^ #(#(#(#RGPackageDefinition #(#'CAs-ODBC')) #'2020-02-26T12:32:17.940896+01:00') )
+]
+
+{ #category : #'code-critics' }
+ManifestCAsODBC class >> ruleGRUsesCurlyBraceArraysRuleV1FalsePositive [
+	^ #(#(#(#RGPackageDefinition #(#'CAs-ODBC')) #'2020-02-26T10:24:33.504896+01:00') )
 ]
 
 { #category : #'code-critics' }

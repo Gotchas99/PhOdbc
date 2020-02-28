@@ -2,8 +2,8 @@ Class {
 	#name : #OdbcConn,
 	#superclass : #Object,
 	#instVars : [
-		'hdbc',
-		'statements'
+		'statements',
+		'handle'
 	],
 	#pools : [
 		'OdbcConstants'
@@ -13,25 +13,26 @@ Class {
 
 { #category : #accessing }
 OdbcConn >> allocStatement [
-	| stmt ret tmp |
+	| stmt tmp |
 	stmt := ExternalAddress new.
-	(ret := self uFFIallocstmt: stmt hdbc: hdbc) = SQL_SUCCESS
-		ifTrue: [ tmp := OdbcStmt new stmt: stmt.statements add:tmp.
-			^ tmp ]
-		ifFalse: [ ^ ret ]
+	(self uFFIallocstmt: stmt hdbc: handle) = SQL_SUCCESS
+		ifTrue: [ tmp := OdbcStmt new stmt: stmt.
+			statements add: tmp.
+			^ tmp ] 
+		ifFalse: [ OdbcError signalFor: self ]
 ]
 
 { #category : #accessing }
 OdbcConn >> disconnect [
-	statements do: [ :s | s freeHandle ].
+	statements ifNotNil: [ statements do: [ :s | s freeHandle ] ].
 	statements := nil.
-	^ self uFFIsqlDisconnect: hdbc 
+	^ self uFFIsqlDisconnect: handle 
 ]
 
 { #category : #accessing }
 OdbcConn >> driverConnect: connString [
 statements:=OrderedCollection new.
-	^ self uFFIdriverConnect: connString hdbc: hdbc
+	^ self uFFIdriverConnect: connString hdbc: handle
 ]
 
 { #category : #sample }
@@ -47,7 +48,7 @@ OdbcConn >> ffiLibrary [
 { #category : #accessing }
 OdbcConn >> freeHandle [
 
-	^ self uFFIfreeHandle: hdbc 
+	^ self uFFIfreeHandle: handle 
 ]
 
 { #category : #accessing }
@@ -68,7 +69,7 @@ OdbcConn >> getDiagRec [
 	textLengthPtr := ByteArray new: FFIInt32 externalTypeSize.
 	rc := OdbcLibrary uniqueInstance
 		      uFFIgetDiagRecType: SQL_HANDLE_DBC
-		      handle: hdbc
+		      handle: handle
 		      recNumber: recNumber
 		      sqlState: sqlState
 		      nativeErrorPtr: nativeErrorPtr
@@ -81,8 +82,18 @@ OdbcConn >> getDiagRec [
 ]
 
 { #category : #accessing }
+OdbcConn >> handle [
+ ^	handle
+]
+
+{ #category : #'initialize - release' }
+OdbcConn >> handleType [
+	^ SQL_HANDLE_DBC 
+]
+
+{ #category : #accessing }
 OdbcConn >> hdbc:aHdbc [
-hdbc:= aHdbc
+handle:= aHdbc
 ]
 
 { #category : #'ffi calls' }

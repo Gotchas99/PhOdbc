@@ -2,8 +2,8 @@ Class {
 	#name : #OdbcEnv,
 	#superclass : #Object,
 	#instVars : [
-		'henv',
-		'connections'
+		'connections',
+		'handle'
 	],
 	#classVars : [
 		'Default'
@@ -38,7 +38,7 @@ OdbcEnv class >> reset [
 OdbcEnv class >> shutDown: quitting [
 	quitting
 		ifFalse: [ ^ self ].
-	self default deallocEnvironment
+	self default deallocEnvironment. self reset
 ]
 
 { #category : #'class initialization' }
@@ -54,7 +54,7 @@ OdbcEnv >> allocConnection [
 	((self
 		uFFIallocHandle: hdbc
 		handleType: SQL_HANDLE_DBC
-		inputHandle: henv) = SQL_SUCCESS)
+		inputHandle: handle) = SQL_SUCCESS)
 		ifFalse: [ Error signal ].
 	con := OdbcConn new hdbc: hdbc.
 	connections add: con.
@@ -65,10 +65,10 @@ OdbcEnv >> allocConnection [
 OdbcEnv >> allocEnvironment [
 	"SQLRETURN SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);"
 
-	henv ifNotNil: [ self deallocEnvironment ].
-	henv := ExternalAddress new.
+	handle ifNotNil: [ self deallocEnvironment ].
+	handle := ExternalAddress new.
 	(self
-		uFFIallocHandle: henv 
+		uFFIallocHandle: handle 
 		handleType: SQL_HANDLE_ENV
 		inputHandle: ExternalAddress null) = SQL_SUCCESS
 		ifFalse: [ Error signal ].
@@ -82,12 +82,14 @@ OdbcEnv >> deallocEnvironment [
 
 	| ret |
 	connections
-		do: [ :c | 
-			c
-				disconnect;
-				freeHandle ].connections:=nil.
-	ret := self uFFIfreeHandle: henv handleType: SQL_HANDLE_ENV.
-	henv := nil.
+		ifNotNil: [ connections
+				do: [ :c | 
+					c 
+						disconnect;
+						freeHandle ] ].
+	connections := nil.
+	ret := self uFFIfreeHandle: handle handleType: SQL_HANDLE_ENV.
+	handle := nil.
 	^ ret
 ]
 
@@ -114,7 +116,7 @@ OdbcEnv >> getDiagRec [
 	textLengthPtr := ByteArray new: FFIInt32 externalTypeSize.
 	rc := OdbcLibrary uniqueInstance 
 		      uFFIgetDiagRecType: SQL_HANDLE_ENV
-		      handle: henv
+		      handle: handle
 		      recNumber: recNumber
 		      sqlState: sqlState
 		      nativeErrorPtr: nativeErrorPtr
@@ -146,6 +148,16 @@ OdbcEnv >> getEnvAttr [
 	^ tmp
 ]
 
+{ #category : #accessing }
+OdbcEnv >> handle [
+	^handle
+]
+
+{ #category : #'initialize - release' }
+OdbcEnv >> handleType [
+^ SQL_HANDLE_ENV
+]
+
 { #category : #'initialize - release' }
 OdbcEnv >> initialize [
 super initialize.
@@ -170,7 +182,7 @@ OdbcEnv >> listDrivers [
 	attr_ret := ByteArray new: FFIInt16 externalTypeSize.
 	[ 
 	rc := self
-		      uFFIlistDriversHenv: henv driver:  driver
+		      uFFIlistDriversHenv: handle driver:  driver
 		      direction: dir
 		      driver_size: driver_size
 		      driver_ret: driver_ret
@@ -195,7 +207,7 @@ OdbcEnv >> setEnvAttr [
 	valuePtr fromInteger: SQL_OV_ODBC3.
 	stringLength := -1.
 	(self
-		uFFIsetEnv: henv
+		uFFIsetEnv: handle
 		attr: attribute
 		valuePtr: valuePtr
 		stringLength: stringLength) = SQL_SUCCESS

@@ -1,3 +1,12 @@
+"
+Odbc library
+
+Sql server driver 17:
+https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server?view=sql-server-ver15
+
+ODBC for Linux:
+https://compscinotes.wordpress.com/2010/04/18/unixodbc-mysql-sample-program/
+"
 Class {
 	#name : #OdbcLibrary,
 	#superclass : #FFILibrary,
@@ -6,6 +15,33 @@ Class {
 	],
 	#category : #'CAs-ODBC'
 }
+
+{ #category : #examples }
+OdbcLibrary class >> sample [
+	<script>
+	| conn stmt sql |
+	OdbcEnv default allocEnvironment.
+	conn := OdbcEnv default allocConnection.
+	conn
+		driverConnect:
+			'DRIVER={ODBC Driver 17 for SQL Server};Server=131.97.145.26;Database=LATExtractions;Integrated Security=False;PWD=Wmz!EeA!*k3pkSzw;Persist Security Info=True;UID=latextractions_write;Connect Timeout=5;ApplicationIntent=ReadWrite'.
+	stmt := conn allocStatement.
+	sql := 'SELECT TOP (2) [NativeReadingId]
+      ,[ChassisSeries]
+      ,[ChassisNumber]
+       ,[LoggedPatternID] 
+		,[ReadoutDate]
+      ,CONVERT(varchar(max), [XmlMessage]) as myXML 
+  FROM [LATExtractions].[dbo].[EXT_Prototype3]'.
+	stmt sql: sql.
+	stmt onDone: [ :rs | rs inspect ].
+	stmt onError: [ :ex | self halt ].
+	stmt execute.
+	stmt close.
+	conn
+		disconnect;
+		freeHandle
+]
 
 { #category : #'accessing platform' }
 OdbcLibrary >> macModuleName [
@@ -27,11 +63,24 @@ OdbcLibrary >> uFFIgetDiagRecType: handleType handle: handle recNumber: recNumbe
 ]
 
 { #category : #'accessing platform' }
-OdbcLibrary >> unixModuleName [
-	"to be found out"
+OdbcLibrary >> unix64LibraryName [
+	"On different flavors of linux the path to library may differ
+depending on OS distro or whether system is 32 or 64 bit.
+Packages such as snapcraft can also change the path.
+Look in a number of known locations, or LD_LIBRARY_PATH."
 
-	
-	^ 'libfreetype.so.6'
+#('/lib/x86_64-linux-gnu' '/usr/lib')
+, (((OSEnvironment current getEnv: 'LD_LIBRARY_PATH') ifNil: [ '' ])
+substrings: ':')
+do: [ :path |
+| libraryPath |
+libraryPath := path asFileReference / 'libodbc.so.1'.
+libraryPath exists
+ifTrue: [ ^ libraryPath fullName ] ].
+self error: 'Cannot locate ODBC library. Please check if it installed
+on your system'
+
+
 ]
 
 { #category : #'accessing platform' }

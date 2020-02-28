@@ -2,13 +2,13 @@ Class {
 	#name : #OdbcStmt,
 	#superclass : #Object,
 	#instVars : [
-		'stmt',
+		'sql',
 		'columnCount',
 		'descs',
 		'errorBlock',
 		'rowBlock',
-		'sql',
-		'doneBlock'
+		'doneBlock',
+		'handle'
 	],
 	#pools : [
 		'OdbcConstants'
@@ -16,25 +16,30 @@ Class {
 	#category : #'CAs-ODBC'
 }
 
-{ #category : #accessing }
+{ #category : #execution }
+OdbcStmt >> close [ 
+	self uFFIfreeStmt:handle. self uFFIfreeHandle: handle
+]
+
+{ #category : #private }
 OdbcStmt >> describeCol: colNr [
-	| strLenPtr rc columnName dataTypePtr columnSizePtr decimalDigitsPtr nullablePtr desc |
+	| strLenPtr columnName dataTypePtr columnSizePtr decimalDigitsPtr nullablePtr desc |
 	columnName := ByteArray new: 512.
 	strLenPtr := FFIInt16 newBuffer.
 	dataTypePtr := FFIInt16 newBuffer.
 	columnSizePtr := FFIULong newBuffer.
 	decimalDigitsPtr := FFIInt16 newBuffer.
 	nullablePtr := FFIInt16 newBuffer.
-	rc := self
-		      uFFIdescribeCol: colNr
-		      buf: columnName
-		      bufLen: columnName size
-		      strLenPtr: strLenPtr
-		      dataTypePtr: dataTypePtr
-		      columnSizePtr: columnSizePtr
-		      decimalDigitsPtr: decimalDigitsPtr
-		      nullablePtr: nullablePtr.
-	rc = 0 ifFalse: [ self halt ].
+	(self
+		uFFIdescribeCol: colNr
+		buf: columnName
+		bufLen: columnName size
+		strLenPtr: strLenPtr
+		dataTypePtr: dataTypePtr
+		columnSizePtr: columnSizePtr
+		decimalDigitsPtr: decimalDigitsPtr
+		nullablePtr: nullablePtr) = SQL_SUCCESS
+		ifFalse: [ OdbcError signal ].
 	desc := Dictionary new.
 	desc
 		at: 'ColumnName' put: columnName asNullTerminatedString;
@@ -42,14 +47,13 @@ OdbcStmt >> describeCol: colNr [
 		at: 'Nullable' put: (nullablePtr shortAt: 1 bigEndian: false) = 1;
 		at: 'ColumnSize' put: (columnSizePtr longAt: 1 bigEndian: false);
 		at: 'DecimalDigits'
-		put: (decimalDigitsPtr shortAt: 1 bigEndian: false).
-
+			put: (decimalDigitsPtr shortAt: 1 bigEndian: false).
 	^ desc
 ]
 
-{ #category : #accessing }
-OdbcStmt >> execDirect: sql [
-	| len tmp rc |
+{ #category : #execution }
+OdbcStmt >> execDirect: anSql [
+
 	"len := sql size.
 	tmp := ByteArray new: len + 1.
 	tmp	replaceFrom: 1
@@ -57,27 +61,30 @@ OdbcStmt >> execDirect: sql [
 		with: sql
 		startingAt: 1.
 	tmp at: len + 1 put: 0."
-	rc:=  self uFFIexecDirect: sql.rc = SQL_SUCCESS ifFalse: [ self halt ].
-	descs := self getDescriptions.^rc
+	(self uFFIexecDirect: anSql) = SQL_SUCCESS
+		ifFalse: [ OdbcError signalFor:self ].
+	descs := self getDescriptions
 ]
 
 { #category : #execution }
 OdbcStmt >> execute [
-	| tabs rc  |
-	[ 
-	rc := self execDirect: sql.
+	| tabs |
+	[ [ self execDirect: sql.
 	tabs := OrderedCollection new.
-	[ 
-	rc := self fetch.
-	rc = SQL_SUCCESS ] whileTrue: [ |rec|
-		rec := self getData.
-		rowBlock ifNotNil: [ rowBlock value: rec ].
-		doneBlock ifNotNil: [ tabs add: rec ] ]. doneBlock ifNotNil: [ doneBlock value:tabs  ]] ensure: [ self freeHandle ]
+	[ self fetch = SQL_SUCCESS ]
+		whileTrue: [ | rec |
+			rec := self getData.
+			rowBlock ifNotNil: [ :b | b value: rec ].
+			doneBlock ifNotNil: [ tabs add: rec ] ].
+	doneBlock ifNotNil: [ :b | b value: tabs ] ]
+		on: Error
+		do: [ :ex | errorBlock ifNotNil: [ :b | b value: ex ] ] ]
+		ensure: [ self close ]
 ]
 
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> fetch [
-	^ self uFFIfetch:stmt
+	^ self uFFIfetch:handle
 ]
 
 { #category : #resources }
@@ -85,33 +92,40 @@ OdbcStmt >> ffiLibrary [
 	^ OdbcLibrary
 ]
 
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> freeHandle [
 
-	^ self uFFIfreeHandle: stmt
+	^ self uFFIfreeHandle: handle
 ]
 
 { #category : #accessing }
 OdbcStmt >> getData [
-	| rec typeCode val colName |
+	| rec typeCode val colName colSize |
 	rec := Dictionary new.
 	1 to: self numResultColumns do: [ :ix | 
 		typeCode := (descs at: ix) at: 'DataType'.
 		colName := (descs at: ix) at: 'ColumnName'.
+		colSize := (descs at: ix) at: 'ColumnSize'.
 		val := nil.
-		({ 
-			 SQL_CHAR.
-			 SQL_VARCHAR } includes: typeCode) ifTrue: [ 
-			val := self getString: ix ].
-		({ 
-			 SQL_INTEGER.
-			 SQL_SMALLINT } includes: typeCode) ifTrue: [ 
-			val := self getInt: ix ].
-		({ 
-			 SQL_FLOAT.
-			 SQL_REAL.
-			 SQL_DOUBLE } includes: typeCode) ifTrue: [ 
-			val := self getFloat: ix ].
+		({SQL_CHAR.
+		SQL_VARCHAR.
+		SQL_SS_XML} includes: typeCode)
+			ifTrue: [ val := self getString: ix size: colSize ].
+		({SQL_INTEGER.
+		SQL_SMALLINT} includes: typeCode)
+			ifTrue: [ val := self getInt: ix ].
+		({SQL_FLOAT.
+		SQL_REAL.
+		SQL_DOUBLE} includes: typeCode)
+			ifTrue: [ val := self getFloat: ix ].
+		({SQL_TYPE_DATE} includes: typeCode)
+			ifTrue: [ val := self getDate: ix ].
+		({SQL_DATETIME.
+		SQL_TYPE_TIMESTAMP} includes: typeCode)
+			ifTrue: [ val := self getDateTime: ix ].	({SQL_TYPE_TIME.
+		} includes: typeCode)
+			ifTrue: [ val := self getTime: ix ].
+		val ifNil: [ self halt ].
 		rec at: colName put: val ].
 	^ rec
 ]
@@ -134,20 +148,49 @@ OdbcStmt >> getDataNr: i type: aType [
 
 { #category : #accessing }
 OdbcStmt >> getDate: i [
-	| bufLen buf strLen_or_IndPtr rc y m d |
+	| bufLen buf strLen_or_IndPtr y m d |
 	bufLen := 512.
 	buf := ByteArray new: bufLen.
 	strLen_or_IndPtr := ByteArray new: FFIInt16 externalTypeSize.
-	rc := self
+	(self
 		uFFIgetDataNr: i
 		type: SQL_C_TYPE_DATE
 		buf: buf
 		bufLen: bufLen
-		strLen_or_IndPtr: strLen_or_IndPtr.
+		strLen_or_IndPtr: strLen_or_IndPtr) = SQL_SUCCESS
+		ifFalse: [ OdbcError signal ].
 	y := buf unsignedShortAt: 1 bigEndian: false.
 	m := buf unsignedShortAt: 3 bigEndian: false.
 	d := buf unsignedShortAt: 5 bigEndian: false.
 	^ Date year: y month: m day: d
+]
+
+{ #category : #accessing }
+OdbcStmt >> getDateTime: i [
+	| bufLen buf strLen_or_IndPtr y m d h min s |
+	bufLen := 512.
+	buf := ByteArray new: bufLen.
+	strLen_or_IndPtr := ByteArray new: FFIInt16 externalTypeSize.
+	(self
+		uFFIgetDataNr: i
+		type: SQL_C_TYPE_TIMESTAMP
+		buf: buf
+		bufLen: bufLen
+		strLen_or_IndPtr: strLen_or_IndPtr) = SQL_SUCCESS
+		ifFalse: [ OdbcError signal ].
+	y := buf unsignedShortAt: 1 bigEndian: false.
+	m := buf unsignedShortAt: 3 bigEndian: false.
+	d := buf unsignedShortAt: 5 bigEndian: false.
+	h := buf unsignedShortAt: 7 bigEndian: false.
+	min := buf unsignedShortAt: 9 bigEndian: false.
+	s := buf unsignedShortAt: 11 bigEndian: false.
+	^ DateAndTime
+		year: y
+		month: m
+		day: d
+		hour: h
+		minute: min
+		second: s
 ]
 
 { #category : #accessing }
@@ -176,7 +219,7 @@ OdbcStmt >> getDiagRec [
 	textLengthPtr := ByteArray new: FFIInt32 externalTypeSize.
 	rc := OdbcLibrary uniqueInstance
 		      uFFIgetDiagRecType: SQL_HANDLE_STMT
-		      handle: stmt
+		      handle: handle
 		      recNumber: recNumber
 		      sqlState: sqlState
 		      nativeErrorPtr: nativeErrorPtr
@@ -190,74 +233,154 @@ OdbcStmt >> getDiagRec [
 
 { #category : #accessing }
 OdbcStmt >> getFloat: i [
-	| bufLen buf strLen_or_IndPtr rc |
+	| bufLen buf strLen_or_IndPtr |
 	bufLen := 512.
 	buf := ByteArray new: bufLen.
 	strLen_or_IndPtr := ByteArray new: FFIInt16 externalTypeSize.
-	rc := self
+	(self
 		uFFIgetDataNr: i
 		type: SQL_C_DOUBLE
 		buf: buf
 		bufLen: bufLen
-		strLen_or_IndPtr: strLen_or_IndPtr.
+		strLen_or_IndPtr: strLen_or_IndPtr) = SQL_SUCCESS
+		ifFalse: [ OdbcError signal ].
 	^ buf doubleAt: 1 bigEndian: false
 ]
 
 { #category : #accessing }
 OdbcStmt >> getInt: i [
-	| buf strLen_or_IndPtr rc |
-	buf := FFIInt64 newBuffer .
+	| buf strLen_or_IndPtr |
+	buf := FFIInt64 newBuffer.
 	strLen_or_IndPtr := FFIInt16 newBuffer.
-	rc := self
-		      uFFIgetDataNr: i
-		      type: SQL_C_LONG
-		      buf: buf
-		      bufLen: buf size
-		      strLen_or_IndPtr: strLen_or_IndPtr.
-	rc = 0 ifFalse: [ self halt ].
+	(self
+		uFFIgetDataNr: i
+		type: SQL_C_LONG
+		buf: buf
+		bufLen: buf size
+		strLen_or_IndPtr: strLen_or_IndPtr) = SQL_SUCCESS
+		ifFalse: [ OdbcError signal ].
 	^ buf longAt: 1 bigEndian: false
 ]
 
 { #category : #accessing }
+OdbcStmt >> getLongString: i size: anInt [
+	| buf strLen_or_IndPtr bufSize rc dataLen maxLen res lenInd |
+	maxLen := 5000.
+	bufSize :=  maxLen .
+	buf := ByteArray new: bufSize + 1.
+	strLen_or_IndPtr := FFIInt16 newBuffer.
+	res := ByteArray
+		streamContents: [ :s | 
+			[ rc := self
+				uFFIgetDataNr: i
+				type: SQL_C_CHAR
+				buf: buf
+				bufLen: buf size
+				strLen_or_IndPtr: strLen_or_IndPtr.
+			rc = SQL_ERROR
+				ifTrue: [ OdbcError signal ].
+			lenInd := strLen_or_IndPtr unsignedShortAt: 1 bigEndian: false.
+			dataLen := (lenInd > maxLen or: [ lenInd = SQL_NO_TOTAL ])
+				ifTrue: [ maxLen ]
+				ifFalse: [ lenInd ].
+			s next: dataLen putAll: buf ] doWhileFalse: [ rc = SQL_NO_DATA or: [ rc = SQL_SUCCESS ] ] ].
+	^ res asString
+]
+
+{ #category : #accessing }
 OdbcStmt >> getString: i [
-	| buf strLen_or_IndPtr rc |
+	| buf strLen_or_IndPtr |
+	self deprecated: 'include size:'.
 	buf := ByteArray new: 512.
 	strLen_or_IndPtr := FFIInt16 newBuffer.
-	rc := self
+	(self
 		uFFIgetDataNr: i
 		type: SQL_C_CHAR
 		buf: buf
-		bufLen: buf size 
-		strLen_or_IndPtr: strLen_or_IndPtr.
-	rc = 0
-		ifFalse: [ self halt ].
+		bufLen: buf size
+		strLen_or_IndPtr: strLen_or_IndPtr) = SQL_SUCCESS
+		ifFalse: [ Error signal ]. 
 	^ buf asNullTerminatedString
 ]
 
 { #category : #accessing }
+OdbcStmt >> getString: i size: anInt [
+	| buf strLen_or_IndPtr bufSize rc dataLen maxLen |
+	maxLen := 5000.
+	 (anInt = 0 or: [ anInt > maxLen ])
+		ifTrue: [ ^ self getLongString: i size: anInt ].
+	buf := ByteArray new: anInt + 1.
+	strLen_or_IndPtr := FFIInt16 newBuffer.
+	 rc := self
+		uFFIgetDataNr: i
+		type: SQL_C_CHAR
+		buf: buf
+		bufLen: buf size
+		strLen_or_IndPtr: strLen_or_IndPtr.
+	rc = SQL_ERROR
+		ifTrue: [ OdbcError signal ].
+	dataLen := strLen_or_IndPtr unsignedShortAt: 1 bigEndian: false .
+	^ (buf first: dataLen) asString
+]
+
+{ #category : #accessing }
+OdbcStmt >> getTime: i [
+	| bufLen buf strLen_or_IndPtr y m d |
+	self halt.
+	bufLen := 512.
+	buf := ByteArray new: bufLen.
+	strLen_or_IndPtr := ByteArray new: FFIInt16 externalTypeSize.
+	(self
+		uFFIgetDataNr: i
+		type: SQL_C_TYPE_DATE
+		buf: buf
+		bufLen: bufLen
+		strLen_or_IndPtr: strLen_or_IndPtr) = SQL_SUCCESS
+		ifFalse: [ OdbcError signal ].
+	y := buf unsignedShortAt: 1 bigEndian: false.
+	m := buf unsignedShortAt: 3 bigEndian: false.
+	d := buf unsignedShortAt: 5 bigEndian: false.
+	^ Date year: y month: m day: d
+]
+
+{ #category : #accessing }
+OdbcStmt >> handle [
+	^handle
+]
+
+{ #category : #'initialize - release' }
+OdbcStmt >> handleType [
+	^ SQL_HANDLE_STMT 
+]
+
+{ #category : #'initialize - release' }
 OdbcStmt >> initialize [
 	columnCount := ByteArray new: FFIInt16 externalTypeSize.
 ]
 
 { #category : #accessing }
 OdbcStmt >> numResultColumns [
-	self uFFInumResultColumns:stmt.
-	^ columnCount shortAt: 1 bigEndian: false
+	| tmp |
+	^ columnCount
+		ifNotNil: [ tmp := FFIInt16 newBuffer.
+			(self uFFInumResultColumns: tmp) = SQL_SUCCESS
+				ifFalse: [ OdbcError signal ].
+			columnCount := tmp shortAt: 1 bigEndian: false ]
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #execution }
 OdbcStmt >> onDone: aBlock [
 	doneBlock := aBlock
 ]
 
-{ #category : #'as yet unclassified' }
-OdbcStmt >> onError: aBlock [ 
-errorBlock:=aBlock
+{ #category : #execution }
+OdbcStmt >> onError: aBlock [
+	errorBlock := aBlock
 ]
 
-{ #category : #'as yet unclassified' }
-OdbcStmt >> onRow: aBlock [
-	rowBlock := aBlock
+{ #category : #execution }
+OdbcStmt >> onRow:aBlock [ 
+rowBlock :=aBlock 
 ]
 
 { #category : #accessing }
@@ -267,25 +390,23 @@ sql:=aSqlString
 
 { #category : #accessing }
 OdbcStmt >> stmt: aStmt [
-	stmt := aStmt
+	handle := aStmt
 ]
 
 { #category : #accessing }
 OdbcStmt >> tables [
 	"https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqltables-function?view=sql-server-ver15"
 
-	| rc |
-	rc := self uFFItables: stmt.
-	rc = SQL_SUCCESS ifFalse: [ self halt ].
-	descs := self getDescriptions.	^ rc
+	(self uFFItables: handle) = SQL_SUCCESS
+		ifFalse: [ OdbcError signal ].
+	descs := self getDescriptions
 ]
 
 { #category : #uFFI }
 OdbcStmt >> uFFIcloseCursor [
 	"SQLRETURN SQLCloseCursor(  SQLHSTMT     StatementHandle);"
 
-	^ self
-		ffiCall: #(SQLRETURN SQLCloseCursor #(SQLHSTMT stmt))
+	^ self ffiCall: #(SQLRETURN SQLCloseCursor #(SQLHSTMT handle))
 ]
 
 { #category : #uFFI }
@@ -296,23 +417,22 @@ OdbcStmt >> uFFIdescribeCol: colNr buf: columnName bufLen: bufLen strLenPtr: str
       SQLSMALLINT *  DataTypePtr,        SQLULEN *      ColumnSizePtr,  
       SQLSMALLINT *  DecimalDigitsPtr,        SQLSMALLINT *  NullablePtr);  "
 
-	^ self ffiCall:
-		  #( short SQLDescribeCol #( SQLHSTMT stmt , SQLUSMALLINT
-		        colNr , SQLCHAR * columnName , SQLSMALLINT bufLen , SQLSMALLINT
-		        * strLenPtr , SQLSMALLINT * dataTypePtr , SQLULEN * columnSizePtr
-		        , SQLSMALLINT * decimalDigitsPtr , SQLSMALLINT * nullablePtr ) )
+	^ self
+		ffiCall:
+			#(short SQLDescribeCol #(SQLHSTMT handle , SQLUSMALLINT colNr , SQLCHAR * columnName , SQLSMALLINT bufLen , SQLSMALLINT * strLenPtr , SQLSMALLINT * dataTypePtr , SQLULEN * columnSizePtr , SQLSMALLINT * decimalDigitsPtr , SQLSMALLINT * nullablePtr))
 ]
 
 { #category : #uFFI }
-OdbcStmt >> uFFIexecDirect: sql [
+OdbcStmt >> uFFIexecDirect: anSql [
 	"SQLRETURN SQLExecDirect(  
      SQLHSTMT     StatementHandle,  
      SQLCHAR *    StatementText,  
      SQLINTEGER   TextLength);  "
-"SQL_NTS = -3"
 
-	^ self ffiCall:
-		  #( SQLRETURN SQLExecDirect #(SQLHSTMT stmt , SQLCHAR * sql ,  -3 ) )
+	"SQL_NTS = -3"
+
+	^ self
+		ffiCall: #(SQLRETURN SQLExecDirect #(SQLHSTMT handle , SQLCHAR * anSql , -3))
 ]
 
 { #category : #uFFI }
@@ -330,6 +450,18 @@ OdbcStmt >> uFFIfreeHandle:aHstmt [
 	^ self ffiCall:
 		  #( SQLRETURN SQLFreeHandle #( SQLSMALLINT 3 , SQLHANDLE
 		        aHstmt ) )
+]
+
+{ #category : #uFFI }
+OdbcStmt >> uFFIfreeStmt: aHstmt [
+	"SQLRETURN SQLFreeStmt(  
+     SQLHSTMT       StatementHandle,  
+     SQLUSMALLINT   Option); "
+
+	"SQL_CLOSE = 0"
+
+	^ self
+		ffiCall: #(SQLRETURN SQLFreeHandle #( SQLHANDLE aHstmt,SQLSMALLINT 0))
 ]
 
 { #category : #uFFI }
@@ -354,17 +486,16 @@ OdbcStmt >> uFFIgetDataNr: i type: aType buf: buf bufLen: bufLen strLen_or_IndPt
 
 	^ self
 		ffiCall:
-			#(SQLRETURN SQLGetData #(SQLHSTMT stmt , SQLUSMALLINT i , SQLSMALLINT aType , SQLPOINTER buf , SQLLEN bufLen , SQLLEN * strLen_or_IndPtr))
+			#(SQLRETURN SQLGetData #(SQLHSTMT handle , SQLUSMALLINT i , SQLSMALLINT aType , SQLPOINTER buf , SQLLEN bufLen , SQLLEN * strLen_or_IndPtr))
 ]
 
 { #category : #uFFI }
-OdbcStmt >> uFFInumResultColumns: aHstmt [
+OdbcStmt >> uFFInumResultColumns: colCnt [
 	"SQLRETURN  SQL_API SQLNumResultCols(SQLHSTMT StatementHandle,
            _Out_ SQLSMALLINT *ColumnCount);"
 
-	^ self ffiCall:
-		  #( SQLRETURN SQLNumResultCols #( SQLHSTMT stmt , SQLSMALLINT
-		        * columnCount ) )
+	^ self
+		ffiCall: #(SQLRETURN SQLNumResultCols #(SQLHSTMT handle , SQLSMALLINT * colCnt))
 ]
 
 { #category : #uFFI }

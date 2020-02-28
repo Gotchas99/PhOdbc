@@ -19,6 +19,7 @@ Class {
 		'SQLUSMALLINT',
 		'SQL_ATTR_ODBC_VERSION',
 		'SQL_CHAR',
+		'SQL_CLOSE',
 		'SQL_C_CHAR',
 		'SQL_C_DOUBLE',
 		'SQL_C_FLOAT',
@@ -32,9 +33,14 @@ Class {
 		'SQL_DECIMAL',
 		'SQL_DOUBLE',
 		'SQL_DRIVER_NOPROMPT',
+		'SQL_DROP',
 		'SQL_ERROR',
+		'SQL_FETCH_ABSOLUTE',
 		'SQL_FETCH_FIRST',
+		'SQL_FETCH_LAST',
 		'SQL_FETCH_NEXT',
+		'SQL_FETCH_PRIOR',
+		'SQL_FETCH_RELATIVE',
 		'SQL_FLOAT',
 		'SQL_HANDLE_DBC',
 		'SQL_HANDLE_DESC',
@@ -44,19 +50,23 @@ Class {
 		'SQL_INVALID_HANDLE',
 		'SQL_NEED_DATA',
 		'SQL_NO_DATA',
+		'SQL_NO_TOTAL',
 		'SQL_NTS',
 		'SQL_NULL_HANDLE',
 		'SQL_NUMERIC',
 		'SQL_OV_ODBC3',
 		'SQL_PARAM_DATA_AVAILABLE',
 		'SQL_REAL',
+		'SQL_RESET_PARAMS',
 		'SQL_SMALLINT',
+		'SQL_SS_XML',
 		'SQL_STILL_EXECUTING',
 		'SQL_SUCCESS',
 		'SQL_SUCCESS_WITH_INFO',
 		'SQL_TYPE_DATE',
 		'SQL_TYPE_TIME',
 		'SQL_TYPE_TIMESTAMP',
+		'SQL_UNBIND',
 		'SQL_UNKNOWN_TYPE',
 		'SQL_VARCHAR'
 	],
@@ -105,6 +115,7 @@ OdbcConstants class >> initialize [
 	SQL_TYPE_DATE := 91.
 	SQL_TYPE_TIME := 92.
 	SQL_TYPE_TIMESTAMP := 93.
+	SQL_SS_XML := -152.
 	" C datatype to SQL datatype mapping"
 	SQL_C_CHAR := SQL_CHAR.
 	SQL_C_LONG := SQL_INTEGER.
@@ -123,6 +134,7 @@ OdbcConstants class >> initialize [
 	SQL_SUCCESS := 0.
 	SQL_SUCCESS_WITH_INFO := 1.
 	SQL_NO_DATA := 100.
+	 SQL_NO_TOTAL                    :=-4.
 	SQL_PARAM_DATA_AVAILABLE := 101.
 	SQL_ERROR := -1.
 	SQL_INVALID_HANDLE := -2.
@@ -130,5 +142,17 @@ OdbcConstants class >> initialize [
 	SQL_NEED_DATA := 99.
 	"env attr"
 	SQL_ATTR_ODBC_VERSION := 200.
-	SQL_OV_ODBC3 := 3
+	SQL_OV_ODBC3 := 3.
+	"Free statement"
+	SQL_CLOSE := 0.
+	SQL_DROP := 1.
+	SQL_UNBIND := 2.
+	SQL_RESET_PARAMS := 3.
+	"Fetch"
+	SQL_FETCH_NEXT := 1.
+	SQL_FETCH_FIRST := 2.
+	SQL_FETCH_LAST := 3.
+	SQL_FETCH_PRIOR := 4.
+	SQL_FETCH_ABSOLUTE := 5.
+	SQL_FETCH_RELATIVE := 6
 ]
