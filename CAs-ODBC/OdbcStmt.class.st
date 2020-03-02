@@ -8,7 +8,8 @@ Class {
 		'errorBlock',
 		'rowBlock',
 		'doneBlock',
-		'handle'
+		'handle',
+		'maxStringGetLen'
 	],
 	#pools : [
 		'OdbcConstants'
@@ -53,7 +54,6 @@ OdbcStmt >> describeCol: colNr [
 
 { #category : #execution }
 OdbcStmt >> execDirect: anSql [
-
 	"len := sql size.
 	tmp := ByteArray new: len + 1.
 	tmp	replaceFrom: 1
@@ -61,8 +61,9 @@ OdbcStmt >> execDirect: anSql [
 		with: sql
 		startingAt: 1.
 	tmp at: len + 1 put: 0."
-	(self uFFIexecDirect: anSql) = SQL_SUCCESS
-		ifFalse: [ OdbcError signalFor:self ].
+
+	(self uFFIexecDirect: anSql len:anSql size) = SQL_SUCCESS
+		ifFalse: [ OdbcError signalFor: self ].
 	descs := self getDescriptions
 ]
 
@@ -264,11 +265,9 @@ OdbcStmt >> getInt: i [
 
 { #category : #accessing }
 OdbcStmt >> getLongString: i size: anInt [
-	| buf strLen_or_IndPtr bufSize rc dataLen maxLen res lenInd |
-	maxLen := 5000.
-	bufSize :=  maxLen .
-	buf := ByteArray new: bufSize + 1.
-	strLen_or_IndPtr := FFIInt16 newBuffer.
+	| buf strLen_or_IndPtr rc dataLen res lenInd |
+	buf := ByteArray new: maxStringGetLen + 1.
+	strLen_or_IndPtr := FFIInt64 newBuffer.
 	res := ByteArray
 		streamContents: [ :s | 
 			[ rc := self
@@ -279,11 +278,12 @@ OdbcStmt >> getLongString: i size: anInt [
 				strLen_or_IndPtr: strLen_or_IndPtr.
 			rc = SQL_ERROR
 				ifTrue: [ OdbcError signal ].
-			lenInd := strLen_or_IndPtr unsignedShortAt: 1 bigEndian: false.
-			dataLen := (lenInd > maxLen or: [ lenInd = SQL_NO_TOTAL ])
-				ifTrue: [ maxLen ]
+			lenInd := strLen_or_IndPtr unsignedLongAt: 1 bigEndian: false.
+			dataLen := (lenInd > maxStringGetLen or: [ lenInd = SQL_NO_TOTAL ])
+				ifTrue: [ maxStringGetLen ]
 				ifFalse: [ lenInd ].
-			s next: dataLen putAll: buf ] doWhileFalse: [ rc = SQL_NO_DATA or: [ rc = SQL_SUCCESS ] ] ].
+			s next: dataLen putAll: buf ]
+				doWhileFalse: [ rc = SQL_NO_DATA or: [ rc = SQL_SUCCESS ] ] ].
 	^ res asString
 ]
 
@@ -305,13 +305,12 @@ OdbcStmt >> getString: i [
 
 { #category : #accessing }
 OdbcStmt >> getString: i size: anInt [
-	| buf strLen_or_IndPtr bufSize rc dataLen maxLen |
-	maxLen := 5000.
-	 (anInt = 0 or: [ anInt > maxLen ])
+	| buf strLen_or_IndPtr rc dataLen |
+	(anInt = 0 or: [ anInt > maxStringGetLen ])
 		ifTrue: [ ^ self getLongString: i size: anInt ].
 	buf := ByteArray new: anInt + 1.
 	strLen_or_IndPtr := FFIInt16 newBuffer.
-	 rc := self
+	rc := self
 		uFFIgetDataNr: i
 		type: SQL_C_CHAR
 		buf: buf
@@ -319,7 +318,7 @@ OdbcStmt >> getString: i size: anInt [
 		strLen_or_IndPtr: strLen_or_IndPtr.
 	rc = SQL_ERROR
 		ifTrue: [ OdbcError signal ].
-	dataLen := strLen_or_IndPtr unsignedShortAt: 1 bigEndian: false .
+	dataLen := strLen_or_IndPtr unsignedShortAt: 1 bigEndian: false.
 	^ (buf first: dataLen) asString
 ]
 
@@ -356,6 +355,8 @@ OdbcStmt >> handleType [
 { #category : #'initialize - release' }
 OdbcStmt >> initialize [
 	columnCount := ByteArray new: FFIInt16 externalTypeSize.
+	maxStringGetLen
+	:= 5000
 ]
 
 { #category : #accessing }
@@ -436,6 +437,20 @@ OdbcStmt >> uFFIexecDirect: anSql [
 ]
 
 { #category : #uFFI }
+OdbcStmt >> uFFIexecDirect: anSql len: anInt [
+	"SQLRETURN SQLExecDirect(  
+     SQLHSTMT     StatementHandle,  
+     SQLCHAR *    StatementText,  
+     SQLINTEGER   TextLength);  "
+
+	"SQL_NTS = -3"
+
+	^ self
+		ffiCall:
+			#(SQLRETURN SQLExecDirect #(SQLHSTMT handle , SQLCHAR * anSql ,SQLINTEGER anInt))
+]
+
+{ #category : #uFFI }
 OdbcStmt >> uFFIfetch:aHstmt [
 	"SQLRETURN  SQL_API SQLFetch(SQLHSTMT StatementHandle);"
 
@@ -465,16 +480,15 @@ OdbcStmt >> uFFIfreeStmt: aHstmt [
 ]
 
 { #category : #uFFI }
-OdbcStmt >> uFFIgetData:aHstmt colNr: i type: aType buf: buf bufLen: bufLen strLen_or_IndPtr: strLen_or_IndPtr [
+OdbcStmt >> uFFIgetData: aHstmt colNr: i type: aType buf: buf bufLen: bufLen strLen_or_IndPtr: strLen_or_IndPtr [
 	"SQLRETURN  SQL_API SQLGetData(SQLHSTMT StatementHandle,
            SQLUSMALLINT ColumnNumber, SQLSMALLINT TargetType,
            _Out_writes_opt_(_Inexpressible_(BufferLength)) SQLPOINTER TargetValue, 
 				SQLLEN BufferLength,   _Out_opt_ SQLLEN *StrLen_or_IndPtr);"
-
-	^ self ffiCall:
-		  #( SQLRETURN SQLGetData #( SQLHSTMT aHstmt , SQLUSMALLINT
-		        i , SQLSMALLINT aType , SQLPOINTER buf , SQLLEN bufLen
-		        , SQLLEN * strLen_or_IndPtr ) )
+self halt.
+	^ self
+		ffiCall:
+			#(SQLRETURN SQLGetData #(SQLHSTMT aHstmt , SQLUSMALLINT i , SQLSMALLINT aType , SQLPOINTER buf , SQLLEN bufLen , SQLLEN * strLen_or_IndPtr))
 ]
 
 { #category : #uFFI }

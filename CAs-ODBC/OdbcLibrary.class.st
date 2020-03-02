@@ -69,18 +69,19 @@ depending on OS distro or whether system is 32 or 64 bit.
 Packages such as snapcraft can also change the path.
 Look in a number of known locations, or LD_LIBRARY_PATH."
 
-#('/lib/x86_64-linux-gnu' '/usr/lib')
-, (((OSEnvironment current getEnv: 'LD_LIBRARY_PATH') ifNil: [ '' ])
-substrings: ':')
-do: [ :path |
-| libraryPath |
-libraryPath := path asFileReference / 'libodbc.so.1'.
-libraryPath exists
-ifTrue: [ ^ libraryPath fullName ] ].
-self error: 'Cannot locate ODBC library. Please check if it installed
+	#('/lib/x86_64-linux-gnu' '/usr/lib'   '/usr/lib/x86_64-linux-gnu')
+		,
+			(((OSEnvironment current getEnv: 'LD_LIBRARY_PATH') ifNil: [ '' ])
+				substrings: ':')
+		do: [ :path | 
+			| libraryPath |
+			libraryPath := path asFileReference / 'libodbc.so.1'.
+			libraryPath exists
+				ifTrue: [ ^ libraryPath fullName ] ].
+	self
+		error:
+			'Cannot locate ODBC library. Please check if it installed
 on your system'
-
-
 ]
 
 { #category : #'accessing platform' }
