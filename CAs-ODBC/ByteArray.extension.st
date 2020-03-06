@@ -10,13 +10,18 @@ ByteArray >> asNullTerminatedString [
 { #category : #'*CAs-ODBC' }
 ByteArray >> asNullTerminatedStrings [
 	| nullPos start strings len |
-	strings:=OrderedCollection new.
-	start:=1.
-	[nullPos := (self indexOf: 0 startingAt: start) .
-	len:= nullPos-start.
-	strings add: ((String new: len)
-		replaceFrom: 1
-		to:len
-		with: self
-		startingAt: start)]doWhileFalse: [ start:= nullPos+1.(self at:start)=0 ].^strings
+	strings := OrderedCollection new.
+	start := 1.
+	[ nullPos := self indexOf: 0 startingAt: start.
+	len := nullPos - start.
+	strings 
+		add:
+			((String new: len)
+				replaceFrom: 1
+				to: len
+				with: self
+				startingAt: start) ]
+		doWhileFalse: [ start := nullPos + 1.
+			(self at: start) = 0 ].
+	^ strings
 ]
