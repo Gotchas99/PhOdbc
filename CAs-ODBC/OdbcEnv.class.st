@@ -68,29 +68,27 @@ OdbcEnv >> allocEnvironment [
 	handle ifNotNil: [ self deallocEnvironment ].
 	handle := ExternalAddress new.
 	(self
-		uFFIallocHandle: handle 
+		uFFIallocHandle: handle
 		handleType: SQL_HANDLE_ENV
 		inputHandle: ExternalAddress null) = SQL_SUCCESS
 		ifFalse: [ Error signal ].
 	self setEnvAttr.
-	connections := OrderedCollection new
+	
 ]
 
 { #category : #'initialize - release' }
 OdbcEnv >> deallocEnvironment [
 	"SQLRETURN  SQL_API SQLFreeHandle(SQLSMALLINT HandleType, SQLHANDLE Handle);"
 
-	| ret |
-	connections
-		ifNotNil: [ connections
+	 connections
 				do: [ :c | 
-					c 
+					c
 						disconnect;
-						freeHandle ] ].
-	connections := nil.
-	ret := self uFFIfreeHandle: handle handleType: SQL_HANDLE_ENV.
-	handle := nil.
-	^ ret
+						freeHandle ] .
+	connections removeAll.
+	handle isNull
+		ifFalse: [ self uFFIfreeHandle: handle handleType: SQL_HANDLE_ENV.
+			handle := ExternalAddress new ]
 ]
 
 { #category : #'library path' }
@@ -106,7 +104,7 @@ OdbcEnv >> getDiagRec [
      SQLINTEGER *    NativeErrorPtr,       SQLCHAR *       MessageText,  
      SQLSMALLINT     BufferLength,       SQLSMALLINT *   TextLengthPtr);  "
 
-	| rc recNumber sqlState nativeErrorPtr messageText bufferLength textLengthPtr |
+	| recNumber sqlState nativeErrorPtr messageText bufferLength textLengthPtr rc |
 	recNumber := 1.
 	sqlState := ByteArray new: 10.
 	nativeErrorPtr := ByteArray new: FFIInt32 externalTypeSize.
@@ -114,18 +112,17 @@ OdbcEnv >> getDiagRec [
 	"	messageText := ExternalAddress allocate: bufferLength."
 	messageText := ByteArray new: bufferLength.
 	textLengthPtr := ByteArray new: FFIInt32 externalTypeSize.
-	rc := OdbcLibrary uniqueInstance 
-		      uFFIgetDiagRecType: SQL_HANDLE_ENV
-		      handle: handle
-		      recNumber: recNumber
-		      sqlState: sqlState
-		      nativeErrorPtr: nativeErrorPtr
-		      messageText: messageText
-		      bufferLength: bufferLength
-		      textLengthPtr: textLengthPtr.
-	^ { 
-		  (sqlState first: 5) asString.
-		  (messageText first: (textLengthPtr signedShortAt: 1)) asString }
+	rc := OdbcLibrary uniqueInstance
+		uFFIgetDiagRecType: SQL_HANDLE_ENV
+		handle: handle
+		recNumber: recNumber
+		sqlState: sqlState
+		nativeErrorPtr: nativeErrorPtr
+		messageText: messageText
+		bufferLength: bufferLength
+		textLengthPtr: textLengthPtr.
+	^ {(sqlState first: 5) asString.
+	(messageText first: (textLengthPtr signedShortAt: 1)) asString}
 ]
 
 { #category : #api }
@@ -136,9 +133,10 @@ OdbcEnv >> getEnvAttr [
      SQLINTEGER *   StringLengthPtr);  "
 
 	| tmp bufferLength attribute valuePtr stringLengthPointer |
-	attribute := SQL_ATTR_ODBC_VERSION                   .
-	bufferLength := 2048.
-	valuePtr := ByteArray new: bufferLength.
+	self flag: 'fix return values'.
+	attribute := SQL_ATTR_ODBC_VERSION.
+	bufferLength := 2048.  
+	valuePtr := ByteArray new: bufferLength + 1.
 	stringLengthPointer := ByteArray new: FFIInt32 externalTypeSize.
 	tmp := self
 		uFFIgetEnvAttr: attribute
@@ -160,7 +158,9 @@ OdbcEnv >> handleType [
 
 { #category : #'initialize - release' }
 OdbcEnv >> initialize [
-super initialize.
+	super initialize.handle := ExternalAddress new.
+
+	connections := OrderedCollection new
 ]
 
 { #category : #api }
@@ -200,7 +200,7 @@ OdbcEnv >> setEnvAttr [
 	"SQLRETURN SQLSetEnvAttr(       SQLHENV      EnvironmentHandle,  
      SQLINTEGER   Attribute,       SQLPOINTER   ValuePtr,  
      SQLINTEGER   StringLength); "
- 
+
 	| attribute valuePtr stringLength |
 	attribute := SQL_ATTR_ODBC_VERSION.
 	valuePtr := ExternalAddress new.
@@ -211,7 +211,7 @@ OdbcEnv >> setEnvAttr [
 		attr: attribute
 		valuePtr: valuePtr
 		stringLength: stringLength) = SQL_SUCCESS
-		ifFalse: [ Error signal ]
+		ifFalse: [ OdbcError signal ]
 ]
 
 { #category : #'ffi calls' }

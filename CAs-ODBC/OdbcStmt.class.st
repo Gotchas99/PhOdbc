@@ -18,8 +18,12 @@ Class {
 }
 
 { #category : #execution }
-OdbcStmt >> close [ 
-	self uFFIfreeStmt:handle. self uFFIfreeHandle: handle
+OdbcStmt >> close [
+	handle isNull
+		ifTrue: [ ^ self ].
+	self uFFIfreeStmt: handle.
+	self uFFIfreeHandle: handle.
+	handle beNull 
 ]
 
 { #category : #private }
@@ -54,24 +58,16 @@ OdbcStmt >> describeCol: colNr [
 
 { #category : #execution }
 OdbcStmt >> execDirect: anSql [
-	"len := sql size.
-	tmp := ByteArray new: len + 1.
-	tmp	replaceFrom: 1
-		to: len
-		with: sql
-		startingAt: 1.
-	tmp at: len + 1 put: 0."
-
-	(self uFFIexecDirect: anSql len:anSql size) = SQL_SUCCESS
+	(self uFFIexecDirect: anSql len: anSql size) = SQL_SUCCESS
 		ifFalse: [ OdbcError signalFor: self ].
-	descs := self getDescriptions
+	
 ]
 
 { #category : #execution }
 OdbcStmt >> execute [
 	| tabs |
-	[ [ self execDirect: sql.
-	tabs := OrderedCollection new.
+	[ [ self execDirect: sql.descs := self getDescriptions
+.	tabs := OrderedCollection new.
 	[ self fetch = SQL_SUCCESS ]
 		whileTrue: [ | rec |
 			rec := self getData.
@@ -133,17 +129,17 @@ OdbcStmt >> getData [
 
 { #category : #accessing }
 OdbcStmt >> getDataNr: i type: aType [
-	| buf strLen_or_IndPtr rc |
-
+	| buf strLen_or_IndPtr |
+	self deprecated:'separate methods for each dataype'.
 	buf := ByteArray new: 512.
 	strLen_or_IndPtr := FFIInt16 newBuffer.
-	rc := self
-		      uFFIgetDataNr: i
-		      type: aType
-		      buf: buf
-		      bufLen: buf size
-		      strLen_or_IndPtr: strLen_or_IndPtr.
-	rc = 0 ifFalse: [ self halt ].
+	(self
+		uFFIgetDataNr: i
+		type: aType
+		buf: buf
+		bufLen: buf size
+		strLen_or_IndPtr: strLen_or_IndPtr) = SQL_SUCCESS
+		ifFalse: [ OdbcError signalFor: self ].
 	^ buf asNullTerminatedString
 ]
 
@@ -169,7 +165,7 @@ OdbcStmt >> getDate: i [
 { #category : #accessing }
 OdbcStmt >> getDateTime: i [
 	| bufLen buf strLen_or_IndPtr y m d h min s |
-	bufLen := 512.
+	bufLen := 20.
 	buf := ByteArray new: bufLen.
 	strLen_or_IndPtr := ByteArray new: FFIInt16 externalTypeSize.
 	(self
@@ -234,15 +230,14 @@ OdbcStmt >> getDiagRec [
 
 { #category : #accessing }
 OdbcStmt >> getFloat: i [
-	| bufLen buf strLen_or_IndPtr |
-	bufLen := 512.
-	buf := ByteArray new: bufLen.
+	| buf strLen_or_IndPtr |
+	buf := FFIFloat64 newBuffer.
 	strLen_or_IndPtr := ByteArray new: FFIInt16 externalTypeSize.
 	(self
 		uFFIgetDataNr: i
 		type: SQL_C_DOUBLE
 		buf: buf
-		bufLen: bufLen
+		bufLen: buf size
 		strLen_or_IndPtr: strLen_or_IndPtr) = SQL_SUCCESS
 		ifFalse: [ OdbcError signal ].
 	^ buf doubleAt: 1 bigEndian: false
@@ -309,7 +304,7 @@ OdbcStmt >> getString: i size: anInt [
 	(anInt = 0 or: [ anInt > maxStringGetLen ])
 		ifTrue: [ ^ self getLongString: i size: anInt ].
 	buf := ByteArray new: anInt + 1.
-	strLen_or_IndPtr := FFIInt16 newBuffer.
+	strLen_or_IndPtr := FFIInt64 newBuffer.
 	rc := self
 		uFFIgetDataNr: i
 		type: SQL_C_CHAR
@@ -326,14 +321,14 @@ OdbcStmt >> getString: i size: anInt [
 OdbcStmt >> getTime: i [
 	| bufLen buf strLen_or_IndPtr y m d |
 	self halt.
-	bufLen := 512.
+	bufLen := 10.
 	buf := ByteArray new: bufLen.
 	strLen_or_IndPtr := ByteArray new: FFIInt16 externalTypeSize.
 	(self
 		uFFIgetDataNr: i
 		type: SQL_C_TYPE_DATE
 		buf: buf
-		bufLen: bufLen
+		bufLen: buf size
 		strLen_or_IndPtr: strLen_or_IndPtr) = SQL_SUCCESS
 		ifFalse: [ OdbcError signal ].
 	y := buf unsignedShortAt: 1 bigEndian: false.
@@ -344,7 +339,7 @@ OdbcStmt >> getTime: i [
 
 { #category : #accessing }
 OdbcStmt >> handle [
-	^handle
+	^ handle 
 ]
 
 { #category : #'initialize - release' }
@@ -354,9 +349,10 @@ OdbcStmt >> handleType [
 
 { #category : #'initialize - release' }
 OdbcStmt >> initialize [
-	columnCount := ByteArray new: FFIInt16 externalTypeSize.
-	maxStringGetLen
-	:= 5000
+	super initialize.
+	handle := ExternalAddress new.
+		columnCount := ByteArray new: FFIInt16 externalTypeSize.
+	maxStringGetLen := 5000
 ]
 
 { #category : #accessing }

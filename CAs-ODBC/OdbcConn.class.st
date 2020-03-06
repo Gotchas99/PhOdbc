@@ -25,13 +25,15 @@ OdbcConn >> allocStatement [
 { #category : #accessing }
 OdbcConn >> disconnect [
 	statements ifNotNil: [ statements do: [ :s | s freeHandle ] ].
-	statements := nil.
-	^ self uFFIsqlDisconnect: handle 
+	statements removeAll.handle isNull
+		ifTrue: [ ^ self ].
+
+	self uFFIsqlDisconnect: handle
 ]
 
 { #category : #accessing }
 OdbcConn >> driverConnect: connString [
-statements:=OrderedCollection new.
+
 	^ self uFFIdriverConnect: connString hdbc: handle
 ]
 
@@ -47,8 +49,10 @@ OdbcConn >> ffiLibrary [
 
 { #category : #accessing }
 OdbcConn >> freeHandle [
-
-	^ self uFFIfreeHandle: handle 
+	handle isNull
+		ifTrue: [ ^ self ].
+	self uFFIfreeHandle: handle.
+	handle beNull
 ]
 
 { #category : #accessing }
@@ -94,6 +98,13 @@ OdbcConn >> handleType [
 { #category : #accessing }
 OdbcConn >> hdbc:aHdbc [
 handle:= aHdbc
+]
+
+{ #category : #'initialize - release' }
+OdbcConn >> initialize [
+	super initialize.
+	handle := ExternalAddress new.
+statements := OrderedCollection new
 ]
 
 { #category : #'ffi calls' }
