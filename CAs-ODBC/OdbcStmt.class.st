@@ -97,6 +97,7 @@ OdbcStmt >> freeHandle [
 
 { #category : #accessing }
 OdbcStmt >> getData [
+"https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgetdata-function?view=sql-server-ver15"
 	| rec typeCode val colName colSize |
 	rec := Dictionary new.
 	1 to: self numResultColumns do: [ :ix | 
@@ -119,8 +120,8 @@ OdbcStmt >> getData [
 			ifTrue: [ val := self getDate: ix ].
 		({SQL_DATETIME.
 		SQL_TYPE_TIMESTAMP} includes: typeCode)
-			ifTrue: [ val := self getDateTime: ix ].	({SQL_TYPE_TIME.
-		} includes: typeCode)
+			ifTrue: [ val := self getDateTime: ix ].
+		({SQL_TYPE_TIME} includes: typeCode)
 			ifTrue: [ val := self getTime: ix ].
 		val ifNil: [ self halt ].
 		rec at: colName put: val ].
@@ -260,6 +261,7 @@ OdbcStmt >> getInt: i [
 
 { #category : #accessing }
 OdbcStmt >> getLongString: i size: anInt [
+"https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/getting-long-data?view=sql-server-ver15"
 	| buf strLen_or_IndPtr rc dataLen res lenInd |
 	buf := ByteArray new: maxStringGetLen + 1.
 	strLen_or_IndPtr := FFIInt64 newBuffer.

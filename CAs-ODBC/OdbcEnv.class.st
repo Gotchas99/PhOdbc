@@ -65,30 +65,30 @@ OdbcEnv >> allocConnection [
 OdbcEnv >> allocEnvironment [
 	"SQLRETURN SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);"
 
-	handle ifNotNil: [ self deallocEnvironment ].
-	handle := ExternalAddress new.
+	 self deallocEnvironment .
+
 	(self
 		uFFIallocHandle: handle
 		handleType: SQL_HANDLE_ENV
 		inputHandle: ExternalAddress null) = SQL_SUCCESS
 		ifFalse: [ OdbcError signal ].
-	self setEnvAttr.
-	
+	self setEnvAttr
 ]
 
 { #category : #'initialize - release' }
 OdbcEnv >> deallocEnvironment [
 	"SQLRETURN  SQL_API SQLFreeHandle(SQLSMALLINT HandleType, SQLHANDLE Handle);"
 
-	 connections
-				do: [ :c | 
-					c
-						disconnect;
-						freeHandle ] .
-	connections removeAll.
+	connections
+		do: [ :c | 
+			c
+				disconnect;
+				freeHandle ];
+		removeAll.
 	handle isNull
-		ifFalse: [ self uFFIfreeHandle: handle handleType: SQL_HANDLE_ENV.
-			handle := ExternalAddress new ]
+		ifTrue: [ ^ self ].
+	self uFFIfreeHandle: handle handleType: SQL_HANDLE_ENV.
+	handle beNull
 ]
 
 { #category : #'library path' }
@@ -224,11 +224,12 @@ OdbcEnv >> uFFIallocHandle: aHandle handleType: handleType inputHandle: inputHan
 ]
 
 { #category : #'ffi calls' }
-OdbcEnv >> uFFIfreeHandle: handle handleType: aHandleType [
+OdbcEnv >> uFFIfreeHandle: aHandle handleType: aHandleType [
 	"SQLRETURN  SQL_API SQLFreeHandle(SQLSMALLINT HandleType, SQLHANDLE Handle);"
 
-	^ self ffiCall:
-		  #( SQLRETURN SQLFreeHandle #( SQLSMALLINT aHandleType , SQLHANDLE handle ) )
+	^ self
+		ffiCall:
+			#(SQLRETURN SQLFreeHandle #(SQLSMALLINT aHandleType , SQLHANDLE aHandle))
 ]
 
 { #category : #'ffi calls' }

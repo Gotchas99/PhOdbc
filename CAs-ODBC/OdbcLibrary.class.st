@@ -16,6 +16,12 @@ Class {
 	#category : #'CAs-ODBC'
 }
 
+{ #category : #'as yet unclassified' }
+OdbcLibrary class >> docLinks [
+	"ODBC 64-bits
+	https://docs.microsoft.com/en-us/sql/odbc/reference/odbc-64-bit-information?view=sql-server-ver15"
+]
+
 { #category : #examples }
 OdbcLibrary class >> sample [
 	<script>

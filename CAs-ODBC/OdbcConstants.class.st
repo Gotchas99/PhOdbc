@@ -75,27 +75,32 @@ Class {
 
 { #category : #'class initialization' }
 OdbcConstants class >> initialize [
-	Smalltalk addToStartUpList: self
+	Smalltalk addToStartUpList: self.
+	self startUp:true
 ]
 
 { #category : #'class initialization' }
 OdbcConstants class >> initializeConstants [
 	"handle type identifiers"
 
+	"https://github.com/microsoft/ODBC-Specification/blob/master/Windows/inc/sql.h"
+
+	SQL_NULL_HANDLE := 0.
 	SQL_HANDLE_ENV := 1.
 	SQL_HANDLE_DBC := 2.
 	SQL_HANDLE_STMT := 3.
 	SQL_HANDLE_DESC := 4.
-	SQL_NULL_HANDLE := 0.
-
 	"types"
 	SQLCHAR := #uchar.
 	SQLSMALLINT := #short.
 	SQLUSMALLINT := #ushort.
-	SQLINTEGER := 'long'.
+	SQLINTEGER := #long.
 	SQLUINTEGER := #ulong.
-	SQLLEN := SQLINTEGER.
-	SQLULEN := #ulong.
+	Smalltalk vm is64bit
+		ifTrue: [ SQLLEN := #long.
+			SQLULEN := #ulong ]
+		ifFalse: [ SQLLEN := #short.
+			SQLULEN := #ushort ].
 	SQLRETURN := SQLSMALLINT.
 	SQLPOINTER := 'void*'.
 	SQLHWND := SQLPOINTER.
@@ -105,7 +110,41 @@ OdbcConstants class >> initializeConstants [
 	SQLHSTMT := SQLHANDLE.
 	SQLHDESC := SQLHANDLE.
 	SQL_NTS := -3.
+
+
+	SQL_DRIVER_NOPROMPT := 0.
+
+	"env attr"
+	SQL_ATTR_ODBC_VERSION := 200.
+	SQL_OV_ODBC3 := 3.
+
+]
+
+{ #category : #'class initialization' }
+OdbcConstants class >> initializeStatement [
+	"handle type identifiers"
+
+	"https://github.com/microsoft/ODBC-Specification/blob/master/Windows/inc/sql.h"
+
+	"FetchOrientation"
+	SQL_FETCH_NEXT := 1.
+	SQL_FETCH_FIRST := 2.
+	SQL_FETCH_LAST := 3.
+	SQL_FETCH_PRIOR := 4.
+	SQL_FETCH_ABSOLUTE := 5.
+	SQL_FETCH_RELATIVE := 6.
+	"Free statement"
+	SQL_CLOSE := 0.
+	SQL_DROP := 1.
+	SQL_UNBIND := 2.
+	SQL_RESET_PARAMS := 3
+]
+
+{ #category : #'class initialization' }
+OdbcConstants class >> initializeTypes [
+
 	"SQL data type codes"
+	"https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/appendix-d-data-types?view=sql-server-ver15"
 	SQL_UNKNOWN_TYPE := 0.
 	SQL_CHAR := 1.
 	SQL_NUMERIC := 2.
@@ -131,40 +170,14 @@ OdbcConstants class >> initializeConstants [
 	SQL_C_TYPE_DATE := SQL_TYPE_DATE.
 	SQL_C_TYPE_TIME := SQL_TYPE_TIME.
 	SQL_C_TYPE_TIMESTAMP := SQL_TYPE_TIMESTAMP.
-	"FetchOrientation"
-	SQL_FETCH_NEXT := 1.
-	SQL_FETCH_FIRST := 2.
-	SQL_DRIVER_NOPROMPT := 0.
-	"return values from functions"
-	SQL_SUCCESS := 0.
-	SQL_SUCCESS_WITH_INFO := 1.
-	SQL_NO_DATA := 100.
-	SQL_NO_TOTAL := -4.
-	SQL_PARAM_DATA_AVAILABLE := 101.
-	SQL_ERROR := -1.
-	SQL_INVALID_HANDLE := -2.
-	SQL_STILL_EXECUTING := 2.
-	SQL_NEED_DATA := 99.
-	"env attr"
-	SQL_ATTR_ODBC_VERSION := 200.
-	SQL_OV_ODBC3 := 3.
-	"Free statement"
-	SQL_CLOSE := 0.
-	SQL_DROP := 1.
-	SQL_UNBIND := 2.
-	SQL_RESET_PARAMS := 3.
-	"Fetch"
-	SQL_FETCH_NEXT := 1.
-	SQL_FETCH_FIRST := 2.
-	SQL_FETCH_LAST := 3.
-	SQL_FETCH_PRIOR := 4.
-	SQL_FETCH_ABSOLUTE := 5.
-	SQL_FETCH_RELATIVE := 6
+
 ]
 
 { #category : #'system startup' }
 OdbcConstants class >> startUp: isImageStarting [
 	isImageStarting
 		ifFalse: [ ^ self ].
-	self initializeConstants 
+	self initializeConstants.
+	self initializeTypes
+.self	initializeStatement 
 ]
