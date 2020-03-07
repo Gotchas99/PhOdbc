@@ -45,8 +45,7 @@ OdbcLibrary class >> sample [
 	stmt execute.
 	stmt close.
 	conn
-		disconnect;
-		freeHandle
+		disconnect
 ]
 
 { #category : #'accessing platform' }

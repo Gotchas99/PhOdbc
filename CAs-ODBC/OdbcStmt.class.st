@@ -1,14 +1,21 @@
+"
+An SQL statement in ODBC
+
+see:
+https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/sql-statements?view=sql-server-ver15
+"
 Class {
 	#name : #OdbcStmt,
 	#superclass : #Object,
 	#instVars : [
+		'conn',
+		'handle',
 		'sql',
 		'columnCount',
 		'descs',
 		'errorBlock',
 		'rowBlock',
 		'doneBlock',
-		'handle',
 		'maxStringGetLen'
 	],
 	#pools : [
@@ -19,11 +26,18 @@ Class {
 
 { #category : #execution }
 OdbcStmt >> close [
+	| rc |
 	handle isNull
 		ifTrue: [ ^ self ].
-	self uFFIfreeStmt: handle.
-	self uFFIfreeHandle: handle.
-	handle beNull 
+	rc := self uFFIfreeHandle: handle.
+	handle beNull.
+	conn  stmtClosed: self.
+	^ rc
+]
+
+{ #category : #accessing }
+OdbcStmt >> conn:aConn [
+conn:=aConn.
 ]
 
 { #category : #private }
@@ -66,8 +80,9 @@ OdbcStmt >> execDirect: anSql [
 { #category : #execution }
 OdbcStmt >> execute [
 	| tabs |
-	[ [ self execDirect: sql.descs := self getDescriptions
-.	tabs := OrderedCollection new.
+	[ [ self execDirect: sql.
+	descs := self getDescriptions.
+	tabs := OrderedCollection new.
 	[ self fetch = SQL_SUCCESS ]
 		whileTrue: [ | rec |
 			rec := self getData.
@@ -75,8 +90,8 @@ OdbcStmt >> execute [
 			doneBlock ifNotNil: [ tabs add: rec ] ].
 	doneBlock ifNotNil: [ :b | b value: tabs ] ]
 		on: Error
-		do: [ :ex | errorBlock ifNotNil: [ :b | b value: ex ] ] ]
-		ensure: [ self close ]
+		do: [ :ex | errorBlock ifNotNil: [ :b | b value: ex ] ifNil: [ ex signal ] ] ]
+		ensure: [ self close ] 
 ]
 
 { #category : #private }
@@ -91,8 +106,11 @@ OdbcStmt >> ffiLibrary [
 
 { #category : #private }
 OdbcStmt >> freeHandle [
-
-	^ self uFFIfreeHandle: handle
+	| rc |
+	self deprecated:'just close'.
+	rc := self uFFIfreeHandle: handle.
+	handle beNull.
+	^ rc
 ]
 
 { #category : #accessing }
@@ -128,23 +146,7 @@ OdbcStmt >> getData [
 	^ rec
 ]
 
-{ #category : #accessing }
-OdbcStmt >> getDataNr: i type: aType [
-	| buf strLen_or_IndPtr |
-	self deprecated:'separate methods for each dataype'.
-	buf := ByteArray new: 512.
-	strLen_or_IndPtr := FFIInt16 newBuffer.
-	(self
-		uFFIgetDataNr: i
-		type: aType
-		buf: buf
-		bufLen: buf size
-		strLen_or_IndPtr: strLen_or_IndPtr) = SQL_SUCCESS
-		ifFalse: [ OdbcError signalFor: self ].
-	^ buf asNullTerminatedString
-]
-
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> getDate: i [
 	| bufLen buf strLen_or_IndPtr y m d |
 	bufLen := 512.
@@ -163,7 +165,7 @@ OdbcStmt >> getDate: i [
 	^ Date year: y month: m day: d
 ]
 
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> getDateTime: i [
 	| bufLen buf strLen_or_IndPtr y m d h min s |
 	bufLen := 20.
@@ -191,7 +193,7 @@ OdbcStmt >> getDateTime: i [
 		second: s
 ]
 
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> getDescriptions [
 	| noOfCols descriptions |
 	noOfCols := self numResultColumns.
@@ -229,7 +231,7 @@ OdbcStmt >> getDiagRec [
 		  (messageText first: (textLengthPtr signedShortAt: 1)) asString }
 ]
 
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> getFloat: i [
 	| buf strLen_or_IndPtr |
 	buf := FFIFloat64 newBuffer.
@@ -244,7 +246,7 @@ OdbcStmt >> getFloat: i [
 	^ buf doubleAt: 1 bigEndian: false
 ]
 
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> getInt: i [
 	| buf strLen_or_IndPtr |
 	buf := FFIInt64 newBuffer.
@@ -259,7 +261,7 @@ OdbcStmt >> getInt: i [
 	^ buf longAt: 1 bigEndian: false
 ]
 
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> getLongString: i size: anInt [
 	"https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/getting-long-data?view=sql-server-ver15"
 
@@ -285,7 +287,7 @@ OdbcStmt >> getLongString: i size: anInt [
 	^ res asString
 ]
 
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> getString: i [
 	| buf strLen_or_IndPtr |
 	self deprecated: 'include size:'.
@@ -301,13 +303,13 @@ OdbcStmt >> getString: i [
 	^ buf asNullTerminatedString
 ]
 
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> getString: i size: anInt [
 	| buf strLen_or_IndPtr rc dataLen |
 	(anInt = 0 or: [ anInt > maxStringGetLen ])
 		ifTrue: [ ^ self getLongString: i size: anInt ].
 	buf := ByteArray new: anInt + 1.
-	strLen_or_IndPtr := FFIInt64 newBuffer.
+	strLen_or_IndPtr := (FFIExternalType resolveType: SQLLEN) newBuffer.
 	rc := self
 		uFFIgetDataNr: i
 		type: SQL_C_CHAR
@@ -316,11 +318,11 @@ OdbcStmt >> getString: i size: anInt [
 		strLen_or_IndPtr: strLen_or_IndPtr.
 	rc = SQL_ERROR
 		ifTrue: [ OdbcError signal ].
-	dataLen := strLen_or_IndPtr unsignedShortAt: 1 bigEndian: false.
+	dataLen := strLen_or_IndPtr unsignedLongAt: 1 bigEndian: false.
 	^ (buf first: dataLen) asString
 ]
 
-{ #category : #accessing }
+{ #category : #private }
 OdbcStmt >> getTime: i [
 	| bufLen buf strLen_or_IndPtr y m d |
 	self halt.
@@ -473,21 +475,9 @@ OdbcStmt >> uFFIfreeStmt: aHstmt [
      SQLUSMALLINT   Option); "
 
 	"SQL_CLOSE = 0"
-
+self deprecated:'not needed. just free the handle'.
 	^ self
-		ffiCall: #(SQLRETURN SQLFreeHandle #( SQLHANDLE aHstmt,SQLSMALLINT 0))
-]
-
-{ #category : #uFFI }
-OdbcStmt >> uFFIgetData: aHstmt colNr: i type: aType buf: buf bufLen: bufLen strLen_or_IndPtr: strLen_or_IndPtr [
-	"SQLRETURN  SQL_API SQLGetData(SQLHSTMT StatementHandle,
-           SQLUSMALLINT ColumnNumber, SQLSMALLINT TargetType,
-           _Out_writes_opt_(_Inexpressible_(BufferLength)) SQLPOINTER TargetValue, 
-				SQLLEN BufferLength,   _Out_opt_ SQLLEN *StrLen_or_IndPtr);"
-self halt.
-	^ self
-		ffiCall:
-			#(SQLRETURN SQLGetData #(SQLHSTMT aHstmt , SQLUSMALLINT i , SQLSMALLINT aType , SQLPOINTER buf , SQLLEN bufLen , SQLLEN * strLen_or_IndPtr))
+		ffiCall: #(SQLRETURN SQLFreeHandle #(SQLHANDLE aHstmt , SQLSMALLINT 0))
 ]
 
 { #category : #uFFI }

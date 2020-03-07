@@ -111,7 +111,14 @@ OdbcConstants class >> initializeConstants [
 	SQLHDESC := SQLHANDLE.
 	SQL_NTS := -3.
 	SQL_DRIVER_NOPROMPT := 0.
-
+	"return codes"
+	SQL_SUCCESS := 0.
+	SQL_SUCCESS_WITH_INFO := 1.
+	SQL_STILL_EXECUTING := 2.
+	SQL_NEED_DATA := 99.
+	SQL_NO_DATA := 100. SQL_PARAM_DATA_AVAILABLE    :=101  .
+	SQL_ERROR := -1.
+	SQL_INVALID_HANDLE := -2.
 	"env attr"
 	SQL_ATTR_ODBC_VERSION := 200.
 	SQL_OV_ODBC3 := 3

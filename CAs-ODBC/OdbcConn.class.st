@@ -2,8 +2,10 @@ Class {
 	#name : #OdbcConn,
 	#superclass : #Object,
 	#instVars : [
+		'env',
+		'handle',
 		'statements',
-		'handle'
+		'connected'
 	],
 	#pools : [
 		'OdbcConstants'
@@ -13,33 +15,43 @@ Class {
 
 { #category : #accessing }
 OdbcConn >> allocStatement [
-	| stmt tmp |
-	stmt := ExternalAddress new.
-	(self uFFIallocstmt: stmt hdbc: handle) = SQL_SUCCESS
-		ifTrue: [ tmp := OdbcStmt new stmt: stmt.
-			statements add: tmp.
-			^ tmp ] 
+	| hStmt newStmt |
+	hStmt := ExternalAddress new.
+	(self uFFIallocstmt: hStmt hdbc: handle) = SQL_SUCCESS
+		ifTrue: [ newStmt := OdbcStmt new stmt: hStmt.
+			statements add: newStmt.
+			newStmt conn: self.
+			^ newStmt ]
 		ifFalse: [ OdbcError signalFor: self ]
 ]
 
 { #category : #accessing }
 OdbcConn >> disconnect [
-	statements ifNotNil: [ statements do: [ :s | s freeHandle ] ].
-	statements removeAll.handle isNull
+	statements ifNotNil: [ statements do: [ :s | s close ] ].
+	statements removeAll.
+	handle isNull
 		ifTrue: [ ^ self ].
-
-	self uFFIsqlDisconnect: handle
+	self
+		uFFIsqlDisconnect: handle;
+		uFFIfreeHandle: handle.
+	handle beNull.connected := false.
+	env disconnected: self
 ]
 
 { #category : #accessing }
 OdbcConn >> driverConnect: connString [
-
-	^ self uFFIdriverConnect: connString hdbc: handle
+({SQL_SUCCESS. SQL_SUCCESS_WITH_INFO} includes:	(self uFFIdriverConnect: connString hdbc: handle) )
+		ifFalse: [ OdbcError signalFor: self ].connected:=true.
 ]
 
 { #category : #sample }
 OdbcConn >> driverConnectScott [
 	^ self driverConnect: 'DSN=mysql-test' 
+]
+
+{ #category : #accessing }
+OdbcConn >> env:anEnv [
+	env:=anEnv 
 ]
 
 { #category : #accessing }
@@ -49,6 +61,7 @@ OdbcConn >> ffiLibrary [
 
 { #category : #accessing }
 OdbcConn >> freeHandle [
+self deprecated:'just disconnect'.
 	handle isNull
 		ifTrue: [ ^ self ].
 	self uFFIfreeHandle: handle.
@@ -103,8 +116,32 @@ handle:= aHdbc
 { #category : #'initialize - release' }
 OdbcConn >> initialize [
 	super initialize.
+	connected := false.
 	handle := ExternalAddress new.
-statements := OrderedCollection new
+	statements := OrderedCollection new
+]
+
+{ #category : #testing }
+OdbcConn >> isConnected [
+	^ connected
+]
+
+{ #category : #printing }
+OdbcConn >> printOn: aStream [
+	super printOn: aStream.
+	aStream << '('.
+	handle isNull
+		ifTrue: [ aStream << 'free' ].
+	connected
+		ifTrue: [ aStream << 'connected' ] ifFalse:
+	[ aStream << 'disconnected' ].
+	aStream << ')'
+]
+
+{ #category : #accessing }
+OdbcConn >> stmtClosed: aStmt [
+
+	statements remove: aStmt
 ]
 
 { #category : #'ffi calls' }

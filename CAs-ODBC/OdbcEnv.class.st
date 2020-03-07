@@ -51,13 +51,14 @@ OdbcEnv class >> startUp: isImageStarting [
 OdbcEnv >> allocConnection [
 	| hdbc con |
 	hdbc := ExternalAddress new.
-	((self
+	(self
 		uFFIallocHandle: hdbc
 		handleType: SQL_HANDLE_DBC
-		inputHandle: handle) = SQL_SUCCESS)
-		ifFalse: [ Error signal ].
+		inputHandle: handle) = SQL_SUCCESS
+		ifFalse: [ OdbcError signal ].
 	con := OdbcConn new hdbc: hdbc.
 	connections add: con.
+	con env: self.
 	^ con
 ]
 
@@ -82,13 +83,19 @@ OdbcEnv >> deallocEnvironment [
 	connections
 		do: [ :c | 
 			c
-				disconnect;
-				freeHandle ];
+				disconnect];
 		removeAll.
 	handle isNull
 		ifTrue: [ ^ self ].
 	self uFFIfreeHandle: handle handleType: SQL_HANDLE_ENV.
 	handle beNull
+]
+
+{ #category : #api }
+OdbcEnv >> disconnected: aConn [
+	
+	connections remove: aConn.
+	
 ]
 
 { #category : #'library path' }
