@@ -75,6 +75,11 @@ Class {
 
 { #category : #'class initialization' }
 OdbcConstants class >> initialize [
+	Smalltalk addToStartUpList: self
+]
+
+{ #category : #'class initialization' }
+OdbcConstants class >> initializeConstants [
 	"handle type identifiers"
 
 	SQL_HANDLE_ENV := 1.
@@ -134,7 +139,7 @@ OdbcConstants class >> initialize [
 	SQL_SUCCESS := 0.
 	SQL_SUCCESS_WITH_INFO := 1.
 	SQL_NO_DATA := 100.
-	 SQL_NO_TOTAL                    :=-4.
+	SQL_NO_TOTAL := -4.
 	SQL_PARAM_DATA_AVAILABLE := 101.
 	SQL_ERROR := -1.
 	SQL_INVALID_HANDLE := -2.
@@ -155,4 +160,11 @@ OdbcConstants class >> initialize [
 	SQL_FETCH_PRIOR := 4.
 	SQL_FETCH_ABSOLUTE := 5.
 	SQL_FETCH_RELATIVE := 6
+]
+
+{ #category : #'system startup' }
+OdbcConstants class >> startUp: isImageStarting [
+	isImageStarting
+		ifFalse: [ ^ self ].
+	self initializeConstants 
 ]

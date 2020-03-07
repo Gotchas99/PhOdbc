@@ -71,7 +71,7 @@ OdbcEnv >> allocEnvironment [
 		uFFIallocHandle: handle
 		handleType: SQL_HANDLE_ENV
 		inputHandle: ExternalAddress null) = SQL_SUCCESS
-		ifFalse: [ Error signal ].
+		ifFalse: [ OdbcError signal ].
 	self setEnvAttr.
 	
 ]
@@ -215,12 +215,12 @@ OdbcEnv >> setEnvAttr [
 ]
 
 { #category : #'ffi calls' }
-OdbcEnv >> uFFIallocHandle: handle handleType: handleType inputHandle: inputHandle [
+OdbcEnv >> uFFIallocHandle: aHandle handleType: handleType inputHandle: inputHandle [
 	"SQLRETURN SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);"
 
 	^ self ffiCall:
 		  #( SQLRETURN SQLAllocHandle #( SQLSMALLINT handleType , SQLHANDLE
-		        inputHandle , SQLHANDLE * handle ) )
+		        inputHandle , SQLHANDLE * aHandle ) )
 ]
 
 { #category : #'ffi calls' }
