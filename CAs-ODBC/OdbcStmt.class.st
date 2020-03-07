@@ -261,10 +261,11 @@ OdbcStmt >> getInt: i [
 
 { #category : #accessing }
 OdbcStmt >> getLongString: i size: anInt [
-"https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/getting-long-data?view=sql-server-ver15"
+	"https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/getting-long-data?view=sql-server-ver15"
+
 	| buf strLen_or_IndPtr rc dataLen res lenInd |
 	buf := ByteArray new: maxStringGetLen + 1.
-	strLen_or_IndPtr := FFIInt64 newBuffer.
+	strLen_or_IndPtr := (FFIExternalType resolveType: SQLLEN)newBuffer.
 	res := ByteArray
 		streamContents: [ :s | 
 			[ rc := self

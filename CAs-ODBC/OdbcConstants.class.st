@@ -97,10 +97,10 @@ OdbcConstants class >> initializeConstants [
 	SQLINTEGER := #long.
 	SQLUINTEGER := #ulong.
 	Smalltalk vm is64bit
-		ifTrue: [ SQLLEN := #long.
-			SQLULEN := #ulong ]
-		ifFalse: [ SQLLEN := #short.
-			SQLULEN := #ushort ].
+		ifTrue: [ SQLLEN := #longlong.
+			SQLULEN := #ulonglong ]
+		ifFalse: [ SQLLEN := #long.
+			SQLULEN := #ulong ].
 	SQLRETURN := SQLSMALLINT.
 	SQLPOINTER := 'void*'.
 	SQLHWND := SQLPOINTER.
@@ -110,14 +110,11 @@ OdbcConstants class >> initializeConstants [
 	SQLHSTMT := SQLHANDLE.
 	SQLHDESC := SQLHANDLE.
 	SQL_NTS := -3.
-
-
 	SQL_DRIVER_NOPROMPT := 0.
 
 	"env attr"
 	SQL_ATTR_ODBC_VERSION := 200.
-	SQL_OV_ODBC3 := 3.
-
+	SQL_OV_ODBC3 := 3
 ]
 
 { #category : #'class initialization' }
