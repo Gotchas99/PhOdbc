@@ -202,6 +202,15 @@ OdbcEnv >> listDrivers [
 	^ driverList
 ]
 
+{ #category : #printing }
+OdbcEnv >> printOn: aStream [
+	aStream << self class name << ' ('.
+	handle isNull
+		ifTrue: [ aStream << 'free' ]
+		ifFalse: [ aStream << connections size asString << ' connections' ].
+	aStream << ')'
+]
+
 { #category : #api }
 OdbcEnv >> setEnvAttr [
 	"SQLRETURN SQLSetEnvAttr(       SQLHENV      EnvironmentHandle,  

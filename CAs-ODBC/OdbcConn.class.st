@@ -128,13 +128,12 @@ OdbcConn >> isConnected [
 
 { #category : #printing }
 OdbcConn >> printOn: aStream [
-	super printOn: aStream.
-	aStream << '('.
+		aStream << self class name << ' ('.
 	handle isNull
 		ifTrue: [ aStream << 'free' ].
 	connected
-		ifTrue: [ aStream << 'connected' ] ifFalse:
-	[ aStream << 'disconnected' ].
+		ifTrue: [ aStream << statements size asString << ' statements' ]
+		ifFalse: [ aStream << 'disconnected' ].
 	aStream << ')'
 ]
 
