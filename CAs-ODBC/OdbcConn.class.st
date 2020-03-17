@@ -81,21 +81,20 @@ OdbcConn >> getDiagRec [
 	sqlState := ByteArray new: 10.
 	nativeErrorPtr := ByteArray new: FFIInt32 externalTypeSize.
 	bufferLength := 2048.
-
 	messageText := ByteArray new: bufferLength.
 	textLengthPtr := ByteArray new: FFIInt32 externalTypeSize.
 	rc := OdbcLibrary uniqueInstance
-		      uFFIgetDiagRecType: SQL_HANDLE_DBC
-		      handle: handle
-		      recNumber: recNumber
-		      sqlState: sqlState
-		      nativeErrorPtr: nativeErrorPtr
-		      messageText: messageText
-		      bufferLength: bufferLength
-		      textLengthPtr: textLengthPtr.
-	^ { 
-		  (sqlState first: 5) asString.
-		  (messageText first: (textLengthPtr signedShortAt: 1)) asString }
+		uFFIgetDiagRecType: SQL_HANDLE_DBC
+		handle: handle
+		recNumber: recNumber
+		sqlState: sqlState
+		nativeErrorPtr: nativeErrorPtr
+		messageText: messageText
+		bufferLength: bufferLength
+		textLengthPtr: textLengthPtr.	rc = SQL_INVALID_HANDLE
+		ifTrue: [ ^ #('***' 'Invalid handle') ].
+	^ {(sqlState first: 5) asString.
+	(messageText first: (textLengthPtr signedShortAt: 1)) asString}
 ]
 
 { #category : #accessing }
@@ -128,13 +127,12 @@ OdbcConn >> isConnected [
 
 { #category : #printing }
 OdbcConn >> printOn: aStream [
-	super printOn: aStream.
-	aStream << '('.
+	aStream << self class name << ' ('.
 	handle isNull
-		ifTrue: [ aStream << 'free' ].
+		ifTrue: [ aStream << 'null' ].
 	connected
-		ifTrue: [ aStream << 'connected' ] ifFalse:
-	[ aStream << 'disconnected' ].
+		ifTrue: [ aStream << statements size asString << ' statements' ]
+		ifFalse: [ aStream << 'disconnected' ].
 	aStream << ')'
 ]
 

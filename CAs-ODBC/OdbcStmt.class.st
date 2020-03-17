@@ -10,6 +10,7 @@ Class {
 	#instVars : [
 		'conn',
 		'handle',
+		'active',
 		'sql',
 		'columnCount',
 		'descs',
@@ -31,7 +32,7 @@ OdbcStmt >> close [
 		ifTrue: [ ^ self ].
 	rc := self uFFIfreeHandle: handle.
 	handle beNull.
-	conn  stmtClosed: self.
+	conn stmtClosed: self.active:=false.
 	^ rc
 ]
 
@@ -79,7 +80,7 @@ OdbcStmt >> execDirect: anSql [
 
 { #category : #execution }
 OdbcStmt >> execute [
-	| tabs |
+	| tabs |active:=true.
 	[ [ self execDirect: sql.
 	descs := self getDescriptions.
 	tabs := OrderedCollection new.
@@ -90,8 +91,9 @@ OdbcStmt >> execute [
 			doneBlock ifNotNil: [ tabs add: rec ] ].
 	doneBlock ifNotNil: [ :b | b value: tabs ] ]
 		on: Error
-		do: [ :ex | errorBlock ifNotNil: [ :b | b value: ex ] ifNil: [ ex signal ] ] ]
-		ensure: [ self close ] 
+		do:
+			[ :ex | errorBlock ifNotNil: [ :b | b value: ex ] ifNil: [ ex signal ] ] ]
+		ensure: [ self close ]
 ]
 
 { #category : #private }
@@ -218,17 +220,17 @@ OdbcStmt >> getDiagRec [
 	messageText := ByteArray new: bufferLength.
 	textLengthPtr := ByteArray new: FFIInt32 externalTypeSize.
 	rc := OdbcLibrary uniqueInstance
-		      uFFIgetDiagRecType: SQL_HANDLE_STMT
-		      handle: handle
-		      recNumber: recNumber
-		      sqlState: sqlState
-		      nativeErrorPtr: nativeErrorPtr
-		      messageText: messageText
-		      bufferLength: bufferLength
-		      textLengthPtr: textLengthPtr.
-	^ { 
-		  (sqlState first: 5) asString.
-		  (messageText first: (textLengthPtr signedShortAt: 1)) asString }
+		uFFIgetDiagRecType: SQL_HANDLE_STMT
+		handle: handle
+		recNumber: recNumber
+		sqlState: sqlState
+		nativeErrorPtr: nativeErrorPtr
+		messageText: messageText
+		bufferLength: bufferLength
+		textLengthPtr: textLengthPtr.	rc = SQL_INVALID_HANDLE
+		ifTrue: [ ^ #('***' 'Invalid handle') ].
+	^ {(sqlState first: 5) asString.
+	(messageText first: (textLengthPtr signedShortAt: 1)) asString}
 ]
 
 { #category : #private }
@@ -355,8 +357,9 @@ OdbcStmt >> handleType [
 { #category : #'initialize - release' }
 OdbcStmt >> initialize [
 	super initialize.
+	active:=false.
 	handle := ExternalAddress new.
-		columnCount := ByteArray new: FFIInt16 externalTypeSize.
+	columnCount := ByteArray new: FFIInt16 externalTypeSize.
 	maxStringGetLen := 5000
 ]
 
@@ -385,6 +388,17 @@ OdbcStmt >> onRow:aBlock [
 rowBlock :=aBlock 
 ]
 
+{ #category : #printing }
+OdbcStmt >> printOn: aStream [
+	aStream << self class name << ' ('.
+	handle isNull
+		ifTrue: [ aStream << 'null' ]
+		ifFalse: [ active
+				ifFalse: [ aStream << 'inactive' ]
+				ifTrue: [ aStream << 'active' ] ].
+	aStream << ')'
+]
+
 { #category : #accessing }
 OdbcStmt >> sql:aSqlString [
 sql:=aSqlString 
@@ -399,7 +413,7 @@ OdbcStmt >> stmt: aStmt [
 OdbcStmt >> tables [
 	"https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqltables-function?view=sql-server-ver15"
 
-	(self uFFItables: handle) = SQL_SUCCESS
+	active:=true.(self uFFItables: handle) = SQL_SUCCESS
 		ifFalse: [ OdbcError signal ].
 	descs := self getDescriptions
 ]
