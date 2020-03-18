@@ -22,7 +22,7 @@ OdbcConn >> allocStatement [
 			statements add: newStmt.
 			newStmt conn: self.
 			^ newStmt ]
-		ifFalse: [ OdbcError signalFor: self ]
+		ifFalse: [ OdbcError signal ]
 ]
 
 { #category : #accessing }
