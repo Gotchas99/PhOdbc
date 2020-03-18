@@ -22,7 +22,7 @@ OdbcConn >> allocStatement [
 			statements add: newStmt.
 			newStmt conn: self.
 			^ newStmt ]
-		ifFalse: [ OdbcError signalFor: self ]
+		ifFalse: [ OdbcError signal ]
 ]
 
 { #category : #accessing }
@@ -81,21 +81,20 @@ OdbcConn >> getDiagRec [
 	sqlState := ByteArray new: 10.
 	nativeErrorPtr := ByteArray new: FFIInt32 externalTypeSize.
 	bufferLength := 2048.
-
 	messageText := ByteArray new: bufferLength.
 	textLengthPtr := ByteArray new: FFIInt32 externalTypeSize.
 	rc := OdbcLibrary uniqueInstance
-		      uFFIgetDiagRecType: SQL_HANDLE_DBC
-		      handle: handle
-		      recNumber: recNumber
-		      sqlState: sqlState
-		      nativeErrorPtr: nativeErrorPtr
-		      messageText: messageText
-		      bufferLength: bufferLength
-		      textLengthPtr: textLengthPtr.
-	^ { 
-		  (sqlState first: 5) asString.
-		  (messageText first: (textLengthPtr signedShortAt: 1)) asString }
+		uFFIgetDiagRecType: SQL_HANDLE_DBC
+		handle: handle
+		recNumber: recNumber
+		sqlState: sqlState
+		nativeErrorPtr: nativeErrorPtr
+		messageText: messageText
+		bufferLength: bufferLength
+		textLengthPtr: textLengthPtr.	rc = SQL_INVALID_HANDLE
+		ifTrue: [ ^ #('***' 'Invalid handle') ].
+	^ {(sqlState first: 5) asString.
+	(messageText first: (textLengthPtr signedShortAt: 1)) asString}
 ]
 
 { #category : #accessing }

@@ -220,17 +220,17 @@ OdbcStmt >> getDiagRec [
 	messageText := ByteArray new: bufferLength.
 	textLengthPtr := ByteArray new: FFIInt32 externalTypeSize.
 	rc := OdbcLibrary uniqueInstance
-		      uFFIgetDiagRecType: SQL_HANDLE_STMT
-		      handle: handle
-		      recNumber: recNumber
-		      sqlState: sqlState
-		      nativeErrorPtr: nativeErrorPtr
-		      messageText: messageText
-		      bufferLength: bufferLength
-		      textLengthPtr: textLengthPtr.
-	^ { 
-		  (sqlState first: 5) asString.
-		  (messageText first: (textLengthPtr signedShortAt: 1)) asString }
+		uFFIgetDiagRecType: SQL_HANDLE_STMT
+		handle: handle
+		recNumber: recNumber
+		sqlState: sqlState
+		nativeErrorPtr: nativeErrorPtr
+		messageText: messageText
+		bufferLength: bufferLength
+		textLengthPtr: textLengthPtr.	rc = SQL_INVALID_HANDLE
+		ifTrue: [ ^ #('***' 'Invalid handle') ].
+	^ {(sqlState first: 5) asString.
+	(messageText first: (textLengthPtr signedShortAt: 1)) asString}
 ]
 
 { #category : #private }

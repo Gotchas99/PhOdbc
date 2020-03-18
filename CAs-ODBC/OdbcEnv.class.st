@@ -24,9 +24,8 @@ OdbcEnv class >> default [
 
 { #category : #'class initialization' }
 OdbcEnv class >> initialize [
-
-
-	Smalltalk addToStartUpList: self
+	Smalltalk addToStartUpList: self.
+	self startUp:true.
 ]
 
 { #category : #accessing }
@@ -125,9 +124,11 @@ OdbcEnv >> getDiagRec [
 		recNumber: recNumber
 		sqlState: sqlState
 		nativeErrorPtr: nativeErrorPtr
-		messageText: messageText
-		bufferLength: bufferLength
+		messageText: messageText 
+		bufferLength: messageText size
 		textLengthPtr: textLengthPtr.
+	rc = SQL_INVALID_HANDLE
+		ifTrue: [ ^ #('***' 'Invalid handle') ].
 	^ {(sqlState first: 5) asString.
 	(messageText first: (textLengthPtr signedShortAt: 1)) asString}
 ]
