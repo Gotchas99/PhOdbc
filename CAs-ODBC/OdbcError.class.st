@@ -34,9 +34,9 @@ OdbcError >> getDiagRec: handle type: type [
 		sqlState: sqlState
 		nativeErrorPtr: nativeErrorPtr
 		messageText: msgText
-		bufferLength: bufferLength 
+		bufferLength: bufferLength
 		textLengthPtr: textLengthPtr.
-	^ {(sqlState first: 5) asString.
+	^ {(sqlState first: 5) asString trim.
 	(msgText first: (textLengthPtr signedShortAt: 1)) asString}
 ]
 
@@ -57,6 +57,7 @@ OdbcError >> signal [
 	"Ask ContextHandlers in the sender chain to handle this signal.  The default is to execute and return my defaultAction."
 
 	| src |
+	signalContext := thisContext contextTag.
 	src := signaler ifNil: [ self receiver ].
 	self setDiagDataFrom: src.
 	^ super signal
