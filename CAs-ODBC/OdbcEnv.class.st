@@ -99,7 +99,7 @@ OdbcEnv >> disconnected: aConn [
 
 { #category : #'library path' }
 OdbcEnv >> ffiLibrary [
-^OdbcLibrary 
+	^ OdbcLibrary 
 ]
 
 { #category : #api }
@@ -188,17 +188,18 @@ OdbcEnv >> listDrivers [
 	attr_size := 256.
 	attr := ByteArray new: attr_size.
 	attr_ret := ByteArray new: FFIInt16 externalTypeSize.
-	[ 
-	rc := self
-		      uFFIlistDriversHenv: handle driver:  driver
-		      direction: dir
-		      driver_size: driver_size
-		      driver_ret: driver_ret
-		      attr: attr
-		      attr_size: attr_size
-		      attr_ret: attr_ret.
-	rc = SQL_SUCCESS ifTrue: [ 
-		driverList add: driver asNullTerminatedString ].
+	[ rc := self
+		uFFIlistDriversHenv: handle
+		driver: driver
+		direction: dir
+		driver_size: driver_size
+		driver_ret: driver_ret
+		attr: attr
+		attr_size: attr_size
+		attr_ret: attr_ret.
+	rc = SQL_SUCCESS
+		ifTrue: [ driverList add: driver asNullTerminatedString ]
+		. rc<0 ifTrue: [ OdbcError signal ].
 	dir := SQL_FETCH_NEXT ] doWhileTrue: [ rc = SQL_SUCCESS ].
 	^ driverList
 ]
