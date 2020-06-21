@@ -64,15 +64,21 @@ OdbcEnv >> allocConnection [
 { #category : #'initialize - release' }
 OdbcEnv >> allocEnvironment [
 	"SQLRETURN SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);"
-
-	 self deallocEnvironment .
-
+ 
+	[ self deallocEnvironment.
 	(self
 		uFFIallocHandle: handle
 		handleType: SQL_HANDLE_ENV
 		inputHandle: ExternalAddress null) = SQL_SUCCESS
 		ifFalse: [ OdbcError signal ].
-	self setEnvAttr
+	self setEnvAttr ]
+		on: Exception
+		do: [ :ex | self traceCr: 'ODBC env alloc exception: ' , ex printString ].
+	self traceCr: 'ODBC env alloc'.
+	[ self traceCr: self listDrivers ]
+		on: Exception
+		do:
+			[ :ex | self traceCr: 'ODBC env listDrivers exception: ' , ex printString ]
 ]
 
 { #category : #'initialize - release' }
@@ -156,7 +162,7 @@ OdbcEnv >> getEnvAttr [
 
 { #category : #accessing }
 OdbcEnv >> handle [
-	^handle
+	^ handle 
 ]
 
 { #category : #'initialize - release' }
