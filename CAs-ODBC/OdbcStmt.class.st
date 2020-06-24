@@ -106,6 +106,11 @@ OdbcStmt >> ffiLibrary [
 	^ OdbcLibrary
 ]
 
+{ #category : #resources }
+OdbcStmt >> ffiLibraryName [
+	^ self ffiLibrary
+]
+
 { #category : #private }
 OdbcStmt >> freeHandle [
 	| rc |

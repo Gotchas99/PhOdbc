@@ -108,6 +108,11 @@ OdbcEnv >> ffiLibrary [
 	^ OdbcLibrary 
 ]
 
+{ #category : #'library path' }
+OdbcEnv >> ffiLibraryName [
+^self ffiLibrary 
+]
+
 { #category : #api }
 OdbcEnv >> getDiagRec [
 	"SQLRETURN SQLGetDiagRec(  

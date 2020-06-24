@@ -60,6 +60,11 @@ OdbcConn >> ffiLibrary [
 ]
 
 { #category : #accessing }
+OdbcConn >> ffiLibraryName [
+	^ self ffiLibrary
+]
+
+{ #category : #accessing }
 OdbcConn >> freeHandle [
 self deprecated:'just disconnect'.
 	handle isNull
