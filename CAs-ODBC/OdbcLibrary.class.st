@@ -90,6 +90,11 @@ on your system'
 ]
 
 { #category : #'accessing platform' }
+OdbcLibrary >> unixModuleName [
+^self unix64LibraryName 
+]
+
+{ #category : #'accessing platform' }
 OdbcLibrary >> win32ModuleName [
 	^ 'odbc32.dll'
 
