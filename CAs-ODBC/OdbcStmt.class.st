@@ -122,7 +122,8 @@ OdbcStmt >> freeHandle [
 
 { #category : #accessing }
 OdbcStmt >> getData [
-"https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgetdata-function?view=sql-server-ver15"
+	"https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgetdata-function?view=sql-server-ver15"
+
 	| rec typeCode val colName colSize |
 	rec := Dictionary new.
 	1 to: self numResultColumns do: [ :ix | 
@@ -148,7 +149,9 @@ OdbcStmt >> getData [
 			ifTrue: [ val := self getDateTime: ix ].
 		({SQL_TYPE_TIME} includes: typeCode)
 			ifTrue: [ val := self getTime: ix ].
-		val ifNil: [ self halt ].
+		val
+			ifNil: [ self traceCr: 'Value is Nil. SQL is:';traceCr:sql.
+				self halt ].
 		rec at: colName put: val ].
 	^ rec
 ]
